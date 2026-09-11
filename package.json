@@ -1,0 +1,47 @@
+{
+  "name": "@fcr/ui",
+  "version": "0.1.0",
+  "description": "Shared FCR React UI — the Salesforce-style list-view grid + the report builder, extracted from fcr-dispatch. React/Next/Tailwind as peers; app-specifics (server actions, formatters) injected. Consumed by the fcr-* apps as a public immutable-SHA tag tarball. See fcr-dispatch#107 / #99.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./cells": {
+      "types": "./dist/cells.d.ts",
+      "default": "./dist/cells.js"
+    },
+    "./listviews": {
+      "types": "./dist/listviews/index.d.ts",
+      "default": "./dist/listviews/index.js"
+    },
+    "./reports": {
+      "types": "./dist/reports/index.d.ts",
+      "default": "./dist/reports/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "devDependencies": {
+    "@fcr/core": "https://github.com/vknotts-coder/fcr-shared/archive/1a006415da76e50b051a25effe8b3eb27539898f.tar.gz",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "next": "^16.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.11"
+  },
+  "peerDependencies": {
+    "@fcr/core": "*",
+    "next": ">=16",
+    "react": ">=19",
+    "react-dom": ">=19"
+  }
+}
