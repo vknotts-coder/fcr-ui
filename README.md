@@ -56,9 +56,13 @@ supplies them:
 
 - `@fcr/ui/cells` — `renderCell(value, col, fmt)`, `cellTd`/`cellTdNum` (shared body-cell classes), and the
   `Formatter` / `CellFormatters` types. Pure; safe in both server and client components.
-- `@fcr/ui/listviews` — `ListGrid` + `SortableHeader` (**server** components; URL-driven sort, no client JS)
-  and `StatusSelect` (`'use client'` dropdown). Kept in separate files so importing the server grid doesn't
-  pull the client module.
+- `@fcr/ui/listviews` — a convenience barrel re-exporting `ListGrid` + `SortableHeader` (**server** components;
+  URL-driven sort, no client JS) and `StatusSelect` (`'use client'` dropdown). The barrel mixes a server and a
+  client module, so the client chunk is kept out of a server-only consumer by tree-shaking (backed by
+  `"sideEffects": false`), not by the import path itself.
+- `@fcr/ui/listviews/grid` / `@fcr/ui/listviews/status-select` — the same components as **direct** subpaths.
+  Import the grid from `…/grid` in a server component for a hard guarantee the `'use client'` `StatusSelect`
+  module never enters the graph (no reliance on tree-shaking).
 - `@fcr/ui/reports` — `ReportBuilder` (`'use client'`; the designer) and `ReportResults` (`'use client'`; its
   results grid, also usable standalone on a saved-report page), plus the `ReportBuilderActions` /
   `ReportBuilderInitial` / `SaveResult` types.

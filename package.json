@@ -14,6 +14,14 @@
       "types": "./dist/listviews/index.d.ts",
       "default": "./dist/listviews/index.js"
     },
+    "./listviews/grid": {
+      "types": "./dist/listviews/list-grid.d.ts",
+      "default": "./dist/listviews/list-grid.js"
+    },
+    "./listviews/status-select": {
+      "types": "./dist/listviews/status-select.d.ts",
+      "default": "./dist/listviews/status-select.js"
+    },
     "./reports": {
       "types": "./dist/reports/index.d.ts",
       "default": "./dist/reports/index.js"
