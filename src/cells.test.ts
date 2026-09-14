@@ -45,7 +45,7 @@ describe("renderCell — injected formatters + fixed cases", () => {
 
 describe("default formatters (used when fmt is omitted)", () => {
   it("money defaults to en-US USD", () => {
-    expect(renderCell(1500, col("money"))).toBe("$1,500");
+    expect(renderCell(1500, col("money"))).toBe("$1,500.00");
     expect(defaultFormatters.money(1234.5)).toBe("$1,234.50");
   });
   it("number defaults to grouped en-US", () => {
