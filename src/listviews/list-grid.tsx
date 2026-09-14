@@ -7,7 +7,7 @@
 import Link from "next/link";
 import type { ReportColumn, TabularResult } from "@fcr/core/reports";
 import type { ReportSort } from "@fcr/core/reports/definition";
-import { renderCell, cellTd as td, cellTdNum as tdNum, type CellFormatters } from "../cells.js";
+import { renderCell, cellTd as td, cellTdNum as tdNum, defaultFormatters, type CellFormatters } from "../cells.js";
 
 const thBase = "px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-fcr-steel border-b border-fcr-line whitespace-nowrap";
 
@@ -41,12 +41,12 @@ export default function ListGrid({
   result,
   sort,
   status,
-  fmt,
+  fmt = defaultFormatters,
 }: {
   result: TabularResult;
   sort: ReportSort;
   status?: string | null;
-  fmt: CellFormatters;
+  fmt?: CellFormatters;
 }) {
   if (result.rows.length === 0) {
     return <p className="py-10 text-center text-sm text-fcr-steel">No records match this view.</p>;

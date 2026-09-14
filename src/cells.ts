@@ -18,9 +18,29 @@ export type Formatter = (value: unknown) => string;
 /** The formatters the grids need: money columns through `money`, number columns through `number`. */
 export type CellFormatters = { money: Formatter; number: Formatter };
 
+// The built-in DEFAULT formatters — generic en-US USD + grouped number, matching fcr-dispatch's
+// fmtMoney/fmtNumber (null/blank/non-finite → "—"). `fmt` is OPTIONAL: a consumer that wants these (every
+// FCR app so far) passes nothing. Why a default and not a required prop: the report builder/results are
+// `'use client'` components usually rendered by a SERVER page, and a plain function can't cross the RSC
+// boundary as a prop — so a server page CANNOT inject formatters into a client grid. A default sidesteps
+// that for the common case; a consumer needing custom formatting overrides `fmt` at a client boundary.
+const _usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+const _toMoney: Formatter = (v) => {
+  if (v === null || v === undefined || v === "") return "—";
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? _usd.format(n) : "—";
+};
+const _toNumber: Formatter = (v) => {
+  if (v === null || v === undefined || v === "") return "—";
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n.toLocaleString("en-US") : "—";
+};
+export const defaultFormatters: CellFormatters = { money: _toMoney, number: _toNumber };
+
 /** Render a typed cell to display text. Date columns show the YYYY-MM-DD head (the runner already emits a
- *  calendar-date string); money/number go through the INJECTED formatters; null is an em dash. */
-export function renderCell(value: CellValue, col: ReportColumn, fmt: CellFormatters): string {
+ *  calendar-date string); money/number go through the formatters (the built-in defaults unless overridden);
+ *  null is an em dash. */
+export function renderCell(value: CellValue, col: ReportColumn, fmt: CellFormatters = defaultFormatters): string {
   if (value === null) return "—";
   switch (col.type) {
     case "money":

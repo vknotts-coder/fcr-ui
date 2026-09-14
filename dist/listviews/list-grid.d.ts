@@ -13,6 +13,6 @@ export default function ListGrid({ result, sort, status, fmt, }: {
     result: TabularResult;
     sort: ReportSort;
     status?: string | null;
-    fmt: CellFormatters;
+    fmt?: CellFormatters;
 }): import("react").JSX.Element;
 //# sourceMappingURL=list-grid.d.ts.map

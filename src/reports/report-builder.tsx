@@ -23,7 +23,7 @@ import { OPERATORS_BY_TYPE, VALUELESS_OPERATORS } from "@fcr/core/reports/defini
 import type { RunOutcome } from "@fcr/core/reports";
 import { csvFilename } from "@fcr/core/reports/csv";
 import ReportResults from "./report-results.js";
-import type { CellFormatters } from "../cells.js";
+import { defaultFormatters, type CellFormatters } from "../cells.js";
 
 // ── Injected app boundary ─────────────────────────────────────────────────────────────────────────
 // The builder does not import app server actions (a shared package can't own Next server actions). The
@@ -176,14 +176,14 @@ export default function ReportBuilder({
   initial,
   savedReportId,
   actions,
-  fmt,
+  fmt = defaultFormatters,
   exportPath = "/reports/export",
 }: {
   objects: ClientReportObject[];
   initial?: ReportBuilderInitial | null;
   savedReportId?: string | null;
   actions: ReportBuilderActions;
-  fmt: CellFormatters;
+  fmt?: CellFormatters;
   exportPath?: string;
 }) {
   const [objectKey, setObjectKey] = useState(initial?.objectKey ?? objects[0]?.key ?? "");

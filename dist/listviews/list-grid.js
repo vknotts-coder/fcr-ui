@@ -5,7 +5,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 // scope are always honored because every render is a fresh scoped query. Styling mirrors the report
 // builder's TabularGrid (report-results.tsx).
 import Link from "next/link";
-import { renderCell, cellTd as td, cellTdNum as tdNum } from "../cells.js";
+import { renderCell, cellTd as td, cellTdNum as tdNum, defaultFormatters } from "../cells.js";
 const thBase = "px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-fcr-steel border-b border-fcr-line whitespace-nowrap";
 /** Header cell: a link that sorts by this column. Clicking the already-active column flips direction;
  *  a new column starts ascending. Carries aria-sort for assistive tech. `status` (the current dropdown
@@ -22,7 +22,7 @@ export function SortableHeader({ col, sort, status }) {
     params.set("dir", nextDir);
     return (_jsx("th", { className: thBase, scope: "col", "aria-sort": ariaSort, style: { textAlign: col.numeric ? "right" : "left" }, children: _jsxs(Link, { href: `?${params.toString()}`, className: `inline-flex items-center gap-1 hover:text-fcr-red ${active ? "text-fcr-red" : ""}`, scroll: false, children: [col.label, _jsx("span", { "aria-hidden": true, className: "text-[8px]", children: caret })] }) }));
 }
-export default function ListGrid({ result, sort, status, fmt, }) {
+export default function ListGrid({ result, sort, status, fmt = defaultFormatters, }) {
     if (result.rows.length === 0) {
         return _jsx("p", { className: "py-10 text-center text-sm text-fcr-steel", children: "No records match this view." });
     }

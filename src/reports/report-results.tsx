@@ -10,7 +10,7 @@
 import Link from "next/link";
 import type { ReportColumn, RunOutcome, SummaryResult, TabularResult, SummaryCell } from "@fcr/core/reports";
 import { REPORT_ROW_CAP } from "@fcr/core/reports/definition";
-import { renderCell, cellTd, cellTdNum, type CellFormatters } from "../cells.js";
+import { renderCell, cellTd, cellTdNum, defaultFormatters, type CellFormatters } from "../cells.js";
 
 // ── Cell formatting ────────────────────────────────────────────────────────────────────────────────
 
@@ -143,7 +143,7 @@ function CountLine({ result }: { result: TabularResult | SummaryResult }) {
 
 // ── Public component ───────────────────────────────────────────────────────────────────────────────
 
-export default function ReportResults({ outcome, fmt }: { outcome: RunOutcome; fmt: CellFormatters }) {
+export default function ReportResults({ outcome, fmt = defaultFormatters }: { outcome: RunOutcome; fmt?: CellFormatters }) {
   if (!outcome.ok) {
     return (
       <div className="rounded-lg border-2 border-fcr-red bg-fcr-red/5 p-4">

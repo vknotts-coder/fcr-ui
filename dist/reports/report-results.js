@@ -8,7 +8,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 // null and nothing links).
 import Link from "next/link";
 import { REPORT_ROW_CAP } from "@fcr/core/reports/definition";
-import { renderCell, cellTd, cellTdNum } from "../cells.js";
+import { renderCell, cellTd, cellTdNum, defaultFormatters } from "../cells.js";
 // ── Cell formatting ────────────────────────────────────────────────────────────────────────────────
 function renderSummaryCell(value, col, fmt) {
     if (value === null || value === undefined)
@@ -56,7 +56,7 @@ function CountLine({ result }) {
     return _jsx("p", { className: "mb-2 text-xs uppercase tracking-widest font-bold text-fcr-steel", children: text });
 }
 // ── Public component ───────────────────────────────────────────────────────────────────────────────
-export default function ReportResults({ outcome, fmt }) {
+export default function ReportResults({ outcome, fmt = defaultFormatters }) {
     if (!outcome.ok) {
         return (_jsxs("div", { className: "rounded-lg border-2 border-fcr-red bg-fcr-red/5 p-4", children: [_jsx("p", { className: "text-sm font-bold uppercase tracking-widest text-fcr-red mb-1", children: "Report error" }), _jsx("ul", { className: "list-disc pl-5 text-sm text-fcr-ink", children: outcome.errors.map((e, i) => (_jsx("li", { children: e }, i))) })] }));
     }

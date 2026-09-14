@@ -1,6 +1,6 @@
 import type { ClientReportObject, ReportDefinition } from "@fcr/core/reports/definition";
 import type { RunOutcome } from "@fcr/core/reports";
-import type { CellFormatters } from "../cells.js";
+import { type CellFormatters } from "../cells.js";
 /** Result of a save action: the new/updated report id, or validation errors. */
 export type SaveResult = {
     ok: true;
@@ -26,7 +26,7 @@ export default function ReportBuilder({ objects, initial, savedReportId, actions
     initial?: ReportBuilderInitial | null;
     savedReportId?: string | null;
     actions: ReportBuilderActions;
-    fmt: CellFormatters;
+    fmt?: CellFormatters;
     exportPath?: string;
 }): import("react").JSX.Element;
 //# sourceMappingURL=report-builder.d.ts.map

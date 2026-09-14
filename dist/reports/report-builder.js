@@ -10,6 +10,7 @@ import { useMemo, useState, useTransition } from "react";
 import { OPERATORS_BY_TYPE, VALUELESS_OPERATORS } from "@fcr/core/reports/definition";
 import { csvFilename } from "@fcr/core/reports/csv";
 import ReportResults from "./report-results.js";
+import { defaultFormatters } from "../cells.js";
 // ── Shared styling (FCR tokens) ─────────────────────────────────────────────────────────────────────
 // Explicit variant constants (not derived by String.replace on each other — a later utility rename would
 // silently no-op the replace and yield a wrong variant). They intentionally share every utility except size.
@@ -59,7 +60,7 @@ function FilterRow({ index, filter, fields, onChange, onRemove, }) {
                     onChange({ ...filter, op, value: VALUELESS_OPERATORS.has(op) ? null : valueStr });
                 }, children: ops.map((op) => (_jsx("option", { value: op, children: OP_LABELS[op] }, op))) }), !VALUELESS_OPERATORS.has(filter.op) && field && (_jsx("div", { className: "w-40", children: _jsx(FilterValue, { field: field, value: valueStr, onChange: (v) => onChange({ ...filter, value: v }) }) })), _jsx("button", { type: "button", onClick: onRemove, className: "text-fcr-steel hover:text-fcr-red px-1", "aria-label": "Remove filter", children: "\u00D7" })] }));
 }
-export default function ReportBuilder({ objects, initial, savedReportId, actions, fmt, exportPath = "/reports/export", }) {
+export default function ReportBuilder({ objects, initial, savedReportId, actions, fmt = defaultFormatters, exportPath = "/reports/export", }) {
     const [objectKey, setObjectKey] = useState(initial?.objectKey ?? objects[0]?.key ?? "");
     const [columns, setColumns] = useState(initial?.definition.columns ?? []);
     const [filters, setFilters] = useState(initial?.definition.filters ?? []);

@@ -43,8 +43,12 @@ add the package's built output to its Tailwind `content` so those classes are ge
 `@fcr/ui` carries no server actions, no locale/currency policy, and no route paths — the consuming app
 supplies them:
 
-- **Formatters** (`CellFormatters` from `@fcr/ui/cells`): `{ money, number }`, each `(value) => string`. The
-  grids call these for money/number columns; the app passes its own `fmtMoney`/`fmtNumber`.
+- **Formatters** (`CellFormatters` from `@fcr/ui/cells`): `{ money, number }`, each `(value) => string`, applied
+  to money/number columns. **Optional** — `fmt` defaults to `defaultFormatters` (en-US USD + grouped number,
+  the same output as dispatch's `fmtMoney`/`fmtNumber`), so most consumers pass nothing. ⚠ A plain function
+  can't cross the RSC boundary as a prop, so a **server** page cannot inject `fmt` into the `'use client'`
+  builder/results — override the default only from a client boundary (a `'use client'` wrapper). The default
+  covers every FCR app today.
 - **Server actions** (`ReportBuilderActions` from `@fcr/ui/reports`): `{ runReport, saveReport, deleteReport }`.
   Each is the app's own Next server action, which **re-gates + re-validates** the definition server-side — the
   builder is a convenience, never the security boundary. A shared package can't own Next server actions, so

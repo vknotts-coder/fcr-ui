@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from "vitest";
 import type { ReportColumn } from "@fcr/core/reports";
-import { renderCell, type CellFormatters } from "./cells.js";
+import { renderCell, defaultFormatters, type CellFormatters } from "./cells.js";
 
 // Sentinel formatters: prove renderCell routes money→money and number→number (not swapped, not a default).
 const fmt: CellFormatters = {
@@ -40,5 +40,20 @@ describe("renderCell — injected formatters + fixed cases", () => {
   it("string/enum → passthrough", () => {
     expect(renderCell("In Repair", col("enum"), fmt)).toBe("In Repair");
     expect(renderCell("hello", col("string"), fmt)).toBe("hello");
+  });
+});
+
+describe("default formatters (used when fmt is omitted)", () => {
+  it("money defaults to en-US USD", () => {
+    expect(renderCell(1500, col("money"))).toBe("$1,500");
+    expect(defaultFormatters.money(1234.5)).toBe("$1,234.50");
+  });
+  it("number defaults to grouped en-US", () => {
+    expect(renderCell(1234.5, col("number"))).toBe("1,234.5");
+  });
+  it("null/blank/non-finite → em dash", () => {
+    expect(defaultFormatters.money("")).toBe("—");
+    expect(defaultFormatters.number("abc")).toBe("—");
+    expect(renderCell(null, col("money"))).toBe("—");
   });
 });
