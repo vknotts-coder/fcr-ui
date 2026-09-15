@@ -32,8 +32,6 @@ export interface UnitFormProps {
   fields: FormField[];
   mode: "create" | "edit";
   cancelHref: string;
-  /** The unit's detail-page href for a dedupe hit (so "Open" can link to the existing record). */
-  duplicateHref?: (hit: DuplicateHit) => string;
   /** Existing values (edit mode) keyed by column. */
   initial?: Record<string, string>;
   /** Per-column select options resolved at render (e.g. the live driver list), overriding a field's static options. */
@@ -50,7 +48,6 @@ export default function UnitForm({
   fields,
   mode,
   cancelHref,
-  duplicateHref,
   initial = {},
   fieldOptions,
   pickerColumns = [],
@@ -96,9 +93,10 @@ export default function UnitForm({
                 <span className="uppercase text-[10px] tracking-wider text-fcr-steel">{d.unitType}</span>
                 <span className="font-medium">{d.sfName ?? "(no unit #)"}</span>
                 <span className="text-fcr-steel">· matched on {d.matchedOn}</span>
-                {duplicateHref && (
-                  <a href={duplicateHref(d)} className="text-fcr-red underline ml-1">Open</a>
-                )}
+                {/* href derived from the serializable DuplicateHit — the fleet's /records/<type>/<id>
+                    convention. Built here (not injected as a fn prop) so nothing non-serializable
+                    crosses the Server→Client boundary. */}
+                <a href={`/records/${d.unitType}/${d.id}`} className="text-fcr-red underline ml-1">Open</a>
               </li>
             ))}
           </ul>
