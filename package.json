@@ -1,6 +1,6 @@
 {
   "name": "@fcr/ui",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Shared FCR React UI — the Salesforce-style list-view grid + the report builder, extracted from fcr-dispatch. React/Next/Tailwind as peers; app-specifics (server actions, formatters) injected. Consumed by the fcr-* apps as a public immutable-SHA tag tarball. See fcr-dispatch#107 / #99.",
   "license": "UNLICENSED",
   "type": "module",

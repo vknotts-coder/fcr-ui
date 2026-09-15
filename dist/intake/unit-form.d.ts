@@ -12,8 +12,6 @@ export interface UnitFormProps {
     fields: FormField[];
     mode: "create" | "edit";
     cancelHref: string;
-    /** The unit's detail-page href for a dedupe hit (so "Open" can link to the existing record). */
-    duplicateHref?: (hit: DuplicateHit) => string;
     /** Existing values (edit mode) keyed by column. */
     initial?: Record<string, string>;
     /** Per-column select options resolved at render (e.g. the live driver list), overriding a field's static options. */
@@ -31,6 +29,6 @@ export interface UnitFormProps {
         edit: string;
     };
 }
-export default function UnitForm({ action, fields, mode, cancelHref, duplicateHref, initial, fieldOptions, pickerColumns, renderPicker, submitLabel, }: UnitFormProps): import("react").JSX.Element;
+export default function UnitForm({ action, fields, mode, cancelHref, initial, fieldOptions, pickerColumns, renderPicker, submitLabel, }: UnitFormProps): import("react").JSX.Element;
 export {};
 //# sourceMappingURL=unit-form.d.ts.map
