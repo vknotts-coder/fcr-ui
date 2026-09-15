@@ -10,7 +10,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 // plain SF-id text inputs so the form works with no app-specific wiring.
 import { useActionState, useState } from "react";
 import { SECTION_ORDER, SECTION_TITLES, } from "@fcr/core/intake";
-import { RecordPicker } from "./record-picker.js";
+import { RecordPicker, ContactSelect } from "./record-picker.js";
 export default function UnitForm({ action, fields, mode, cancelHref, initial = {}, fieldOptions, pickerColumns = [], renderPicker, accountContact, submitLabel, }) {
     const [state, formAction, pending] = useActionState(action, {});
     const errors = state.errors ?? [];
@@ -20,7 +20,8 @@ export default function UnitForm({ action, fields, mode, cancelHref, initial = {
     // post-action form reset (same reason the fields below are controlled). Choosing an account resets
     // the contact and scopes the contact endpoint to that account.
     const [account, setAccount] = useState(accountContact?.initialAccount ?? null);
-    const [contact, setContact] = useState(accountContact?.initialContact ?? null);
+    // Contact is a LOADED picklist (ContactSelect) — its value is just the selected sf_id string.
+    const [contactId, setContactId] = useState(accountContact?.initialContact?.sf_id ?? "");
     const acCols = new Set(accountContact ? [accountContact.accountColumn, accountContact.contactColumn] : []);
     const acSection = accountContact
         ? fields.find((f) => f.column === accountContact.accountColumn)?.section
@@ -47,10 +48,11 @@ export default function UnitForm({ action, fields, mode, cancelHref, initial = {
                     return null;
                 return (_jsxs("section", { className: "bg-white border border-fcr-line rounded-2xl p-4", children: [_jsx("h2", { className: "text-sm uppercase tracking-wide text-fcr-ink font-bold mb-3", children: SECTION_TITLES[section] }), _jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3", children: [showPickers && accountContact && (_jsxs(_Fragment, { children: [_jsx(RecordPicker, { name: accountContact.accountColumn, label: accountContact.accountLabel ?? "Account", endpoint: accountContact.accountEndpoint, value: account, onChange: (h) => {
                                                 setAccount(h);
-                                                setContact(null); // a contact belongs to one account — reset on change
-                                            }, invalid: errorFields.has(accountContact.accountColumn), placeholder: "Search accounts by name\u2026" }), _jsx(RecordPicker
-                                        // Remount on account change so the picker's internal query/results reset.
-                                        , { name: accountContact.contactColumn, label: accountContact.contactLabel ?? "Contact", endpoint: accountContact.contactEndpoint, value: contact, onChange: setContact, disabled: !account, disabledHint: "Choose an account first", queryParams: account ? { account: account.sf_id } : undefined, invalid: errorFields.has(accountContact.contactColumn), placeholder: "Search contacts by name\u2026" }, account?.sf_id ?? "no-account")] })), list.map((f) => {
+                                                setContactId(""); // a contact belongs to one account — reset on change
+                                            }, invalid: errorFields.has(accountContact.accountColumn), placeholder: "Search accounts by name\u2026" }), _jsx(ContactSelect
+                                        // Loaded picklist: on account select it fetches that account's contacts into a
+                                        // dropdown (no typing). Remount on account change so options refetch cleanly.
+                                        , { name: accountContact.contactColumn, label: accountContact.contactLabel ?? "Contact", endpoint: accountContact.contactEndpoint, accountSfId: account?.sf_id ?? null, value: contactId, onChange: setContactId, invalid: errorFields.has(accountContact.contactColumn) }, account?.sf_id ?? "no-account")] })), list.map((f) => {
                                     const value = values[f.column] ?? "";
                                     const invalid = errorFields.has(f.column);
                                     if (pickerSet.has(f.column) && renderPicker) {

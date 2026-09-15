@@ -21,4 +21,16 @@ export interface RecordPickerProps {
     invalid?: boolean;
 }
 export declare function RecordPicker({ name, label, endpoint, value, onChange, queryParams, disabled, disabledHint, placeholder, invalid, }: RecordPickerProps): import("react").JSX.Element;
+export interface ContactSelectProps {
+    name: string;
+    label: string;
+    /** GET endpoint: `${endpoint}?account=<sf_id>` → PickerHit[] (all of that account's contacts). */
+    endpoint: string;
+    /** The chosen account's sf_id, or null when no account is selected yet. */
+    accountSfId: string | null;
+    value: string;
+    onChange: (sfId: string) => void;
+    invalid?: boolean;
+}
+export declare function ContactSelect({ name, label, endpoint, accountSfId, value, onChange, invalid }: ContactSelectProps): import("react").JSX.Element;
 //# sourceMappingURL=record-picker.d.ts.map

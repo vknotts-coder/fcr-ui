@@ -199,3 +199,71 @@ export function RecordPicker({
     </div>
   );
 }
+
+// ── ContactSelect ────────────────────────────────────────────────────────────────────────────────
+// A LOADED picklist for the contact field: when an account is selected, it fetches that account's
+// contacts once and renders them as a native <select> — no typing required (Van, 2026-09-15). Account
+// scoping is inherent (the endpoint is called with ?account=<sf_id>). Controlled by the parent (value =
+// selected sf_id) so it survives React 19's post-action form reset; submits the sf_id under `name`.
+
+export interface ContactSelectProps {
+  name: string;
+  label: string;
+  /** GET endpoint: `${endpoint}?account=<sf_id>` → PickerHit[] (all of that account's contacts). */
+  endpoint: string;
+  /** The chosen account's sf_id, or null when no account is selected yet. */
+  accountSfId: string | null;
+  value: string; // selected contact sf_id ("" = none)
+  onChange: (sfId: string) => void;
+  invalid?: boolean;
+}
+
+export function ContactSelect({ name, label, endpoint, accountSfId, value, onChange, invalid }: ContactSelectProps) {
+  const [options, setOptions] = useState<PickerHit[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!accountSfId) {
+      setOptions([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    (async () => {
+      try {
+        const usp = new URLSearchParams({ account: accountSfId });
+        const res = await fetch(`${endpoint}?${usp.toString()}`);
+        if (!res.ok) throw new Error(String(res.status));
+        const data = (await res.json()) as PickerHit[];
+        if (!cancelled) setOptions(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setOptions([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [endpoint, accountSfId]);
+
+  const base = `w-full bg-white border rounded-md px-3 py-2 text-sm text-fcr-ink focus:outline-none focus:ring-2 focus:ring-fcr-red/20 ${
+    invalid ? "border-fcr-red" : "border-fcr-line focus:border-fcr-red"
+  }`;
+
+  return (
+    <div>
+      <label htmlFor={name} className="block text-[10px] uppercase tracking-wider text-fcr-steel font-bold mb-1">{label}</label>
+      {!accountSfId ? (
+        <div className="rounded-md border border-dashed border-fcr-line px-3 py-2 text-sm text-fcr-steel">Choose an account first</div>
+      ) : (
+        <select id={name} name={name} value={value} onChange={(e) => onChange(e.target.value)} className={base} disabled={loading}>
+          <option value="">{loading ? "Loading contacts…" : options.length === 0 ? "No contacts for this account" : "— Select a contact —"}</option>
+          {options.map((o) => (
+            <option key={o.sf_id} value={o.sf_id}>{o.sublabel ? `${o.name} · ${o.sublabel}` : o.name}</option>
+          ))}
+        </select>
+      )}
+    </div>
+  );
+}

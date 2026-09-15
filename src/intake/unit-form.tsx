@@ -17,7 +17,7 @@ import {
   type ValidationError,
   type DuplicateHit,
 } from "@fcr/core/intake";
-import { RecordPicker, type PickerHit } from "./record-picker.js";
+import { RecordPicker, ContactSelect, type PickerHit } from "./record-picker.js";
 
 /** Wiring for the coordinated account + contact typeahead pickers. When supplied, UnitForm renders
  *  these two columns as searchable RecordPickers instead of plain sf-id text inputs: the account
@@ -85,7 +85,8 @@ export default function UnitForm({
   // post-action form reset (same reason the fields below are controlled). Choosing an account resets
   // the contact and scopes the contact endpoint to that account.
   const [account, setAccount] = useState<PickerHit | null>(accountContact?.initialAccount ?? null);
-  const [contact, setContact] = useState<PickerHit | null>(accountContact?.initialContact ?? null);
+  // Contact is a LOADED picklist (ContactSelect) — its value is just the selected sf_id string.
+  const [contactId, setContactId] = useState<string>(accountContact?.initialContact?.sf_id ?? "");
   const acCols = new Set(accountContact ? [accountContact.accountColumn, accountContact.contactColumn] : []);
   const acSection = accountContact
     ? fields.find((f) => f.column === accountContact.accountColumn)?.section
@@ -159,24 +160,22 @@ export default function UnitForm({
                     value={account}
                     onChange={(h) => {
                       setAccount(h);
-                      setContact(null); // a contact belongs to one account — reset on change
+                      setContactId(""); // a contact belongs to one account — reset on change
                     }}
                     invalid={errorFields.has(accountContact.accountColumn)}
                     placeholder="Search accounts by name…"
                   />
-                  <RecordPicker
-                    // Remount on account change so the picker's internal query/results reset.
+                  <ContactSelect
+                    // Loaded picklist: on account select it fetches that account's contacts into a
+                    // dropdown (no typing). Remount on account change so options refetch cleanly.
                     key={account?.sf_id ?? "no-account"}
                     name={accountContact.contactColumn}
                     label={accountContact.contactLabel ?? "Contact"}
                     endpoint={accountContact.contactEndpoint}
-                    value={contact}
-                    onChange={setContact}
-                    disabled={!account}
-                    disabledHint="Choose an account first"
-                    queryParams={account ? { account: account.sf_id } : undefined}
+                    accountSfId={account?.sf_id ?? null}
+                    value={contactId}
+                    onChange={setContactId}
                     invalid={errorFields.has(accountContact.contactColumn)}
-                    placeholder="Search contacts by name…"
                   />
                 </>
               )}
