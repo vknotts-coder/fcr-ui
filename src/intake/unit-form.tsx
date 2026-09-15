@@ -9,7 +9,7 @@
 // the app supplies (a typeahead against its own search endpoints); with none, they fall back to
 // plain SF-id text inputs so the form works with no app-specific wiring.
 
-import { useActionState, type ReactNode } from "react";
+import { useActionState, useState, type ReactNode } from "react";
 import {
   SECTION_ORDER,
   SECTION_TITLES,
@@ -58,6 +58,14 @@ export default function UnitForm({
   const errors = state.errors ?? [];
   const duplicates = state.duplicates ?? [];
   const errorFields = new Set(errors.map((e) => e.field).filter(Boolean) as string[]);
+
+  // CONTROLLED field values. React 19 auto-resets an uncontrolled form after a form-action that
+  // returns without redirecting — so on a validation error OR a dedupe block (both return state,
+  // neither redirects) every uncontrolled input would be wiped, losing what the user typed and
+  // making "Create anyway" resubmit an empty form. Driving these off React state instead keeps the
+  // values across the re-render, so the override resubmits the real data and errors don't clear it.
+  const [values, setValues] = useState<Record<string, string>>(() => ({ ...initial }));
+  const setField = (col: string, v: string) => setValues((prev) => ({ ...prev, [col]: v }));
 
   const pickerSet = new Set(pickerColumns);
   const bySection = new Map<string, FormField[]>();
@@ -110,13 +118,20 @@ export default function UnitForm({
             <h2 className="text-sm uppercase tracking-wide text-fcr-ink font-bold mb-3">{SECTION_TITLES[section]}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
               {list.map((f) => {
-                const value = initial[f.column] ?? "";
+                const value = values[f.column] ?? "";
                 const invalid = errorFields.has(f.column);
                 if (pickerSet.has(f.column) && renderPicker) {
                   return <div key={f.column}>{renderPicker({ field: f, value, invalid })}</div>;
                 }
                 return (
-                  <FieldInput key={f.column} field={f} value={value} invalid={invalid} options={fieldOptions?.[f.column]} />
+                  <FieldInput
+                    key={f.column}
+                    field={f}
+                    value={value}
+                    onChange={(v) => setField(f.column, v)}
+                    invalid={invalid}
+                    options={fieldOptions?.[f.column]}
+                  />
                 );
               })}
             </div>
@@ -156,11 +171,13 @@ export default function UnitForm({
 function FieldInput({
   field,
   value,
+  onChange,
   invalid,
   options,
 }: {
   field: FormField;
   value: string;
+  onChange: (value: string) => void;
   invalid: boolean;
   options?: string[];
 }) {
@@ -169,26 +186,28 @@ function FieldInput({
     invalid ? "border-fcr-red" : "border-fcr-line focus:border-fcr-red"
   }`;
   const isWide = field.input === "textarea";
+  // Controlled (value + onChange) so the value survives React 19's post-action form reset — see UnitForm.
   return (
     <div className={isWide ? "sm:col-span-2 lg:col-span-3" : ""}>
       <label htmlFor={field.column} className="block text-[10px] uppercase tracking-wider text-fcr-steel font-bold mb-1">
         {field.label}
       </label>
       {field.input === "select" ? (
-        <select id={field.column} name={field.column} defaultValue={value} className={base}>
+        <select id={field.column} name={field.column} value={value} onChange={(e) => onChange(e.target.value)} className={base}>
           {selectOptions.map((o) => (
             <option key={o} value={o}>{o === "" ? "—" : o}</option>
           ))}
         </select>
       ) : field.input === "textarea" ? (
-        <textarea id={field.column} name={field.column} defaultValue={value} rows={2} className={base} />
+        <textarea id={field.column} name={field.column} value={value} onChange={(e) => onChange(e.target.value)} rows={2} className={base} />
       ) : (
         <input
           id={field.column}
           name={field.column}
           type={field.input === "date" ? "date" : field.input === "number" ? "number" : "text"}
           step={field.input === "number" ? "any" : undefined}
-          defaultValue={value}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
           className={base}
         />
       )}

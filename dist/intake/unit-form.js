@@ -8,13 +8,20 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 // security boundary. Account/contact fields render via an optional `renderPicker` render-prop
 // the app supplies (a typeahead against its own search endpoints); with none, they fall back to
 // plain SF-id text inputs so the form works with no app-specific wiring.
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { SECTION_ORDER, SECTION_TITLES, } from "@fcr/core/intake";
 export default function UnitForm({ action, fields, mode, cancelHref, initial = {}, fieldOptions, pickerColumns = [], renderPicker, submitLabel, }) {
     const [state, formAction, pending] = useActionState(action, {});
     const errors = state.errors ?? [];
     const duplicates = state.duplicates ?? [];
     const errorFields = new Set(errors.map((e) => e.field).filter(Boolean));
+    // CONTROLLED field values. React 19 auto-resets an uncontrolled form after a form-action that
+    // returns without redirecting — so on a validation error OR a dedupe block (both return state,
+    // neither redirects) every uncontrolled input would be wiped, losing what the user typed and
+    // making "Create anyway" resubmit an empty form. Driving these off React state instead keeps the
+    // values across the re-render, so the override resubmits the real data and errors don't clear it.
+    const [values, setValues] = useState(() => ({ ...initial }));
+    const setField = (col, v) => setValues((prev) => ({ ...prev, [col]: v }));
     const pickerSet = new Set(pickerColumns);
     const bySection = new Map();
     for (const f of fields) {
@@ -28,12 +35,12 @@ export default function UnitForm({ action, fields, mode, cancelHref, initial = {
                 if (list.length === 0)
                     return null;
                 return (_jsxs("section", { className: "bg-white border border-fcr-line rounded-2xl p-4", children: [_jsx("h2", { className: "text-sm uppercase tracking-wide text-fcr-ink font-bold mb-3", children: SECTION_TITLES[section] }), _jsx("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3", children: list.map((f) => {
-                                const value = initial[f.column] ?? "";
+                                const value = values[f.column] ?? "";
                                 const invalid = errorFields.has(f.column);
                                 if (pickerSet.has(f.column) && renderPicker) {
                                     return _jsx("div", { children: renderPicker({ field: f, value, invalid }) }, f.column);
                                 }
-                                return (_jsx(FieldInput, { field: f, value: value, invalid: invalid, options: fieldOptions?.[f.column] }, f.column));
+                                return (_jsx(FieldInput, { field: f, value: value, onChange: (v) => setField(f.column, v), invalid: invalid, options: fieldOptions?.[f.column] }, f.column));
                             }) })] }, section));
             }), _jsxs("div", { className: "flex items-center gap-3 sticky bottom-0 bg-fcr-paper/95 backdrop-blur border-t border-fcr-line py-3", children: [_jsx("button", { type: "submit", disabled: pending, className: "bg-fcr-red hover:bg-fcr-red-dark disabled:opacity-60 transition-colors text-white font-semibold rounded-md px-6 py-2.5 uppercase tracking-wider text-sm", children: pending ? "Saving…" : mode === "create" ? labels.create : labels.edit }), duplicates.length > 0 && (
                     // The submit button carries the override flag as its OWN name/value, so it is in the
@@ -42,9 +49,10 @@ export default function UnitForm({ action, fields, mode, cancelHref, initial = {
                     // serialized the form, so the first click would submit blank and appear to do nothing.
                     _jsx("button", { type: "submit", name: "__confirm_duplicate", value: "1", disabled: pending, className: "border border-fcr-amber text-fcr-ink hover:bg-fcr-amber/20 disabled:opacity-60 transition-colors font-semibold rounded-md px-4 py-2.5 uppercase tracking-wider text-sm", children: "Create anyway" })), _jsx("a", { href: cancelHref, className: "text-sm text-fcr-steel hover:text-fcr-ink", children: "Cancel" })] })] }));
 }
-function FieldInput({ field, value, invalid, options, }) {
+function FieldInput({ field, value, onChange, invalid, options, }) {
     const selectOptions = options ?? field.options ?? [];
     const base = `w-full bg-white border rounded-md px-3 py-2 text-sm text-fcr-ink focus:outline-none focus:ring-2 focus:ring-fcr-red/20 ${invalid ? "border-fcr-red" : "border-fcr-line focus:border-fcr-red"}`;
     const isWide = field.input === "textarea";
-    return (_jsxs("div", { className: isWide ? "sm:col-span-2 lg:col-span-3" : "", children: [_jsx("label", { htmlFor: field.column, className: "block text-[10px] uppercase tracking-wider text-fcr-steel font-bold mb-1", children: field.label }), field.input === "select" ? (_jsx("select", { id: field.column, name: field.column, defaultValue: value, className: base, children: selectOptions.map((o) => (_jsx("option", { value: o, children: o === "" ? "—" : o }, o))) })) : field.input === "textarea" ? (_jsx("textarea", { id: field.column, name: field.column, defaultValue: value, rows: 2, className: base })) : (_jsx("input", { id: field.column, name: field.column, type: field.input === "date" ? "date" : field.input === "number" ? "number" : "text", step: field.input === "number" ? "any" : undefined, defaultValue: value, className: base }))] }));
+    // Controlled (value + onChange) so the value survives React 19's post-action form reset — see UnitForm.
+    return (_jsxs("div", { className: isWide ? "sm:col-span-2 lg:col-span-3" : "", children: [_jsx("label", { htmlFor: field.column, className: "block text-[10px] uppercase tracking-wider text-fcr-steel font-bold mb-1", children: field.label }), field.input === "select" ? (_jsx("select", { id: field.column, name: field.column, value: value, onChange: (e) => onChange(e.target.value), className: base, children: selectOptions.map((o) => (_jsx("option", { value: o, children: o === "" ? "—" : o }, o))) })) : field.input === "textarea" ? (_jsx("textarea", { id: field.column, name: field.column, value: value, onChange: (e) => onChange(e.target.value), rows: 2, className: base })) : (_jsx("input", { id: field.column, name: field.column, type: field.input === "date" ? "date" : field.input === "number" ? "number" : "text", step: field.input === "number" ? "any" : undefined, value: value, onChange: (e) => onChange(e.target.value), className: base }))] }));
 }
