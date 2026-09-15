@@ -9,7 +9,7 @@
 // the app supplies (a typeahead against its own search endpoints); with none, they fall back to
 // plain SF-id text inputs so the form works with no app-specific wiring.
 
-import { useActionState, useState, type ReactNode } from "react";
+import { useActionState, type ReactNode } from "react";
 import {
   SECTION_ORDER,
   SECTION_TITLES,
@@ -58,8 +58,6 @@ export default function UnitForm({
   const errors = state.errors ?? [];
   const duplicates = state.duplicates ?? [];
   const errorFields = new Set(errors.map((e) => e.field).filter(Boolean) as string[]);
-  // "Create anyway" — set the confirm flag then let the form submit again past the dedupe guard.
-  const [confirmDup, setConfirmDup] = useState(false);
 
   const pickerSet = new Set(pickerColumns);
   const bySection = new Map<string, FormField[]>();
@@ -104,9 +102,6 @@ export default function UnitForm({
         </div>
       )}
 
-      {/* Set once the user chose to override the dedupe guard; the server action reads it. */}
-      <input type="hidden" name="__confirm_duplicate" value={confirmDup ? "1" : ""} />
-
       {SECTION_ORDER.map((section) => {
         const list = bySection.get(section) ?? [];
         if (list.length === 0) return null;
@@ -138,10 +133,15 @@ export default function UnitForm({
           {pending ? "Saving…" : mode === "create" ? labels.create : labels.edit}
         </button>
         {duplicates.length > 0 && (
+          // The submit button carries the override flag as its OWN name/value, so it is in the
+          // submitted FormData on the FIRST click. A controlled hidden input driven by a click
+          // handler is NOT — React flushes the state update after the browser has already
+          // serialized the form, so the first click would submit blank and appear to do nothing.
           <button
             type="submit"
+            name="__confirm_duplicate"
+            value="1"
             disabled={pending}
-            onClick={() => setConfirmDup(true)}
             className="border border-fcr-amber text-fcr-ink hover:bg-fcr-amber/20 disabled:opacity-60 transition-colors font-semibold rounded-md px-4 py-2.5 uppercase tracking-wider text-sm"
           >
             Create anyway
