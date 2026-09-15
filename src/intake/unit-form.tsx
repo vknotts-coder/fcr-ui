@@ -17,6 +17,25 @@ import {
   type ValidationError,
   type DuplicateHit,
 } from "@fcr/core/intake";
+import { RecordPicker, type PickerHit } from "./record-picker.js";
+
+/** Wiring for the coordinated account + contact typeahead pickers. When supplied, UnitForm renders
+ *  these two columns as searchable RecordPickers instead of plain sf-id text inputs: the account
+ *  picker searches the customer base, and selecting an account scopes + resets the contact picker to
+ *  that account's contacts. The app supplies its own search endpoints (same-origin GET → PickerHit[]).*/
+export interface AccountContactConfig {
+  accountColumn: string;
+  contactColumn: string;
+  /** GET endpoint: `${accountEndpoint}?q=` → PickerHit[] over the customer base. */
+  accountEndpoint: string;
+  /** GET endpoint: `${contactEndpoint}?q=&account=<sf_id>` → PickerHit[] scoped to that account. */
+  contactEndpoint: string;
+  accountLabel?: string;
+  contactLabel?: string;
+  /** Edit-mode: preselected account/contact (resolved sf_id → hit by the caller). */
+  initialAccount?: PickerHit | null;
+  initialContact?: PickerHit | null;
+}
 
 export interface FormState {
   errors?: ValidationError[];
@@ -36,10 +55,12 @@ export interface UnitFormProps {
   initial?: Record<string, string>;
   /** Per-column select options resolved at render (e.g. the live driver list), overriding a field's static options. */
   fieldOptions?: Record<string, string[]>;
-  /** Columns rendered via `renderPicker` instead of a generic input (account/contact). */
+  /** Columns rendered via `renderPicker` instead of a generic input (a generic escape hatch). */
   pickerColumns?: string[];
   /** App-supplied typeahead for a picker column; falls back to a text input when absent. */
   renderPicker?: (args: { field: FormField; value: string; invalid: boolean }) => ReactNode;
+  /** The coordinated account+contact typeahead (see AccountContactConfig). */
+  accountContact?: AccountContactConfig;
   submitLabel?: { create: string; edit: string };
 }
 
@@ -52,12 +73,23 @@ export default function UnitForm({
   fieldOptions,
   pickerColumns = [],
   renderPicker,
+  accountContact,
   submitLabel,
 }: UnitFormProps) {
   const [state, formAction, pending] = useActionState(action, {} as FormState);
   const errors = state.errors ?? [];
   const duplicates = state.duplicates ?? [];
   const errorFields = new Set(errors.map((e) => e.field).filter(Boolean) as string[]);
+
+  // Coordinated account/contact typeahead selection. Held in React state so it survives React 19's
+  // post-action form reset (same reason the fields below are controlled). Choosing an account resets
+  // the contact and scopes the contact endpoint to that account.
+  const [account, setAccount] = useState<PickerHit | null>(accountContact?.initialAccount ?? null);
+  const [contact, setContact] = useState<PickerHit | null>(accountContact?.initialContact ?? null);
+  const acCols = new Set(accountContact ? [accountContact.accountColumn, accountContact.contactColumn] : []);
+  const acSection = accountContact
+    ? fields.find((f) => f.column === accountContact.accountColumn)?.section
+    : undefined;
 
   // CONTROLLED field values. React 19 auto-resets an uncontrolled form after a form-action that
   // returns without redirecting — so on a validation error OR a dedupe block (both return state,
@@ -111,12 +143,43 @@ export default function UnitForm({
       )}
 
       {SECTION_ORDER.map((section) => {
-        const list = bySection.get(section) ?? [];
-        if (list.length === 0) return null;
+        const list = (bySection.get(section) ?? []).filter((f) => !acCols.has(f.column));
+        const showPickers = accountContact && section === acSection;
+        if (list.length === 0 && !showPickers) return null;
         return (
           <section key={section} className="bg-white border border-fcr-line rounded-2xl p-4">
             <h2 className="text-sm uppercase tracking-wide text-fcr-ink font-bold mb-3">{SECTION_TITLES[section]}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
+              {showPickers && accountContact && (
+                <>
+                  <RecordPicker
+                    name={accountContact.accountColumn}
+                    label={accountContact.accountLabel ?? "Account"}
+                    endpoint={accountContact.accountEndpoint}
+                    value={account}
+                    onChange={(h) => {
+                      setAccount(h);
+                      setContact(null); // a contact belongs to one account — reset on change
+                    }}
+                    invalid={errorFields.has(accountContact.accountColumn)}
+                    placeholder="Search accounts by name…"
+                  />
+                  <RecordPicker
+                    // Remount on account change so the picker's internal query/results reset.
+                    key={account?.sf_id ?? "no-account"}
+                    name={accountContact.contactColumn}
+                    label={accountContact.contactLabel ?? "Contact"}
+                    endpoint={accountContact.contactEndpoint}
+                    value={contact}
+                    onChange={setContact}
+                    disabled={!account}
+                    disabledHint="Choose an account first"
+                    queryParams={account ? { account: account.sf_id } : undefined}
+                    invalid={errorFields.has(accountContact.contactColumn)}
+                    placeholder="Search contacts by name…"
+                  />
+                </>
+              )}
               {list.map((f) => {
                 const value = values[f.column] ?? "";
                 const invalid = errorFields.has(f.column);
