@@ -89,3 +89,39 @@ export function RecordPicker({ name, label, endpoint, value, onChange, queryPara
                                     setQuery("");
                                 }, className: "block w-full text-left px-3 py-2 hover:bg-fcr-paper", children: [_jsx("div", { className: "text-sm text-fcr-ink", children: h.name }), h.sublabel ? _jsx("div", { className: "text-[11px] text-fcr-steel", children: h.sublabel }) : null] }) }, h.sf_id)))) }))] }))] }));
 }
+export function ContactSelect({ name, label, endpoint, accountSfId, value, onChange, invalid }) {
+    const [options, setOptions] = useState([]);
+    const [loading, setLoading] = useState(false);
+    useEffect(() => {
+        if (!accountSfId) {
+            setOptions([]);
+            return;
+        }
+        let cancelled = false;
+        setLoading(true);
+        (async () => {
+            try {
+                const usp = new URLSearchParams({ account: accountSfId });
+                const res = await fetch(`${endpoint}?${usp.toString()}`);
+                if (!res.ok)
+                    throw new Error(String(res.status));
+                const data = (await res.json());
+                if (!cancelled)
+                    setOptions(Array.isArray(data) ? data : []);
+            }
+            catch {
+                if (!cancelled)
+                    setOptions([]);
+            }
+            finally {
+                if (!cancelled)
+                    setLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [endpoint, accountSfId]);
+    const base = `w-full bg-white border rounded-md px-3 py-2 text-sm text-fcr-ink focus:outline-none focus:ring-2 focus:ring-fcr-red/20 ${invalid ? "border-fcr-red" : "border-fcr-line focus:border-fcr-red"}`;
+    return (_jsxs("div", { children: [_jsx("label", { htmlFor: name, className: "block text-[10px] uppercase tracking-wider text-fcr-steel font-bold mb-1", children: label }), !accountSfId ? (_jsx("div", { className: "rounded-md border border-dashed border-fcr-line px-3 py-2 text-sm text-fcr-steel", children: "Choose an account first" })) : (_jsxs("select", { id: name, name: name, value: value, onChange: (e) => onChange(e.target.value), className: base, disabled: loading, children: [_jsx("option", { value: "", children: loading ? "Loading contacts…" : options.length === 0 ? "No contacts for this account" : "— Select a contact —" }), options.map((o) => (_jsx("option", { value: o.sf_id, children: o.sublabel ? `${o.name} · ${o.sublabel}` : o.name }, o.sf_id)))] }))] }));
+}
