@@ -40,7 +40,7 @@
     "clean": "rm -rf dist"
   },
   "devDependencies": {
-    "@fcr/core": "https://github.com/vknotts-coder/fcr-shared/archive/refs/tags/v0.13.0.tar.gz",
+    "@fcr/core": "https://github.com/vknotts-coder/fcr-shared/archive/refs/tags/v0.18.0.tar.gz",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
