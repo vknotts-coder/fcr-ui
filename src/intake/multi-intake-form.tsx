@@ -17,13 +17,13 @@
 //                             engine's createUnits injects those from the shared header)
 //   __confirm_duplicate=1   — carried by "Create anyway" to override a dedupe block
 
-import { useActionState, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useRef, useState, type ReactNode } from "react";
 import { SECTION_ORDER, SECTION_TITLES, type FormField, type DuplicateHit } from "@fcr/core/intake";
 import {
   CustomerContactFields,
+  inputBase,
   type CustomerSelection,
   type ContactSelection,
-  emptyNewContact,
 } from "./customer-select.js";
 
 /** Per-unit and form-level errors/dedupe the batch action returns (index = which unit, null = form). */
@@ -76,18 +76,35 @@ export default function MultiIntakeForm({
 
   const [customer, setCustomer] = useState<CustomerSelection>({ mode: "existing", account: null });
   const [contact, setContact] = useState<ContactSelection>({ mode: "existing", ref: "" });
-  const [units, setUnits] = useState<UnitValues[]>([{}]);
+  // Units carry a STABLE client id so a React key survives add/remove (index keys remount inputs) and
+  // so server errors (keyed by batch POSITION) can be suppressed when the array is restructured.
+  const nextId = useRef(1);
+  const [units, setUnits] = useState<{ id: number; values: UnitValues }[]>([{ id: 0, values: {} }]);
+  // Server errors/dedupe come back keyed by the submitted batch POSITION. If the user adds/removes a
+  // unit after a failed submit, positions shift and those markers would flag the WRONG unit (review #8
+  // MEDIUM). Track a structural change since the last result and hide the per-unit markers until the
+  // next submit re-keys them. Edits don't shift positions, so they don't set this.
+  const [restructured, setRestructured] = useState(false);
+  useEffect(() => setRestructured(false), [state]); // a fresh action result re-aligns errors to positions
 
   // The per-unit fields exclude the customer/contact ref columns (the header resolves those; the
   // engine injects them into each unit) and any status/derived column the engine seeds.
   const unitFields = fields.filter((f) => f.column !== customerRefColumn && f.column !== contactRefColumn);
   const errorFieldsFor = (index: number | null) =>
-    new Set(errors.filter((e) => e.index === index).map((e) => e.field).filter(Boolean) as string[]);
+    restructured && index != null
+      ? new Set<string>()
+      : new Set(errors.filter((e) => e.index === index).map((e) => e.field).filter(Boolean) as string[]);
 
   const setUnit = (i: number, col: string, v: string) =>
-    setUnits((prev) => prev.map((u, j) => (j === i ? { ...u, [col]: v } : u)));
-  const addUnit = () => setUnits((prev) => [...prev, {}]);
-  const removeUnit = (i: number) => setUnits((prev) => (prev.length === 1 ? prev : prev.filter((_, j) => j !== i)));
+    setUnits((prev) => prev.map((u, j) => (j === i ? { ...u, values: { ...u.values, [col]: v } } : u)));
+  const addUnit = () => {
+    setUnits((prev) => [...prev, { id: nextId.current++, values: {} }]);
+    setRestructured(true);
+  };
+  const removeUnit = (i: number) => {
+    setUnits((prev) => (prev.length === 1 ? prev : prev.filter((_, j) => j !== i)));
+    setRestructured(true);
+  };
 
   const customerName = customer.mode === "new" ? customer.name || "(new customer)" : customer.account?.name || "(none selected)";
 
@@ -139,9 +156,9 @@ export default function MultiIntakeForm({
         <SectionHeading n={2}>{unitLabel === "truck" ? "Trucks" : unitLabel === "trailer" ? "Trailers" : "Units"}</SectionHeading>
         <div className="space-y-4">
           {units.map((u, i) => {
-            const dupHit = duplicates.find((d) => d.index === i);
+            const dupHit = restructured ? undefined : duplicates.find((d) => d.index === i);
             return (
-              <div key={i} className="bg-white border border-fcr-line rounded-2xl p-4 space-y-3">
+              <div key={u.id} className="bg-white border border-fcr-line rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm uppercase tracking-wide text-fcr-ink font-bold">{unitLabel} {i + 1}</h3>
                   {units.length > 1 && (
@@ -162,7 +179,7 @@ export default function MultiIntakeForm({
                     </ul>
                   </div>
                 )}
-                <UnitFields fields={unitFields} prefix={`unit_${i}_`} values={u} onChange={(col, v) => setUnit(i, col, v)} invalid={errorFieldsFor(i)} />
+                <UnitFields fields={unitFields} prefix={`unit_${i}_`} values={u.values} onChange={(col, v) => setUnit(i, col, v)} invalid={errorFieldsFor(i)} />
               </div>
             );
           })}
@@ -178,7 +195,7 @@ export default function MultiIntakeForm({
           <div><span className="text-fcr-steel">{units.length} {unitLabel}{units.length === 1 ? "" : "s"}:</span></div>
           <ul className="list-disc list-inside text-fcr-steel">
             {units.map((u, i) => (
-              <li key={i}>{u.sf_name || `${unitLabel} ${i + 1}`}{u.vin || u.full_vin ? ` · VIN ${u.vin || u.full_vin}` : ""}</li>
+              <li key={u.id}>{u.values.sf_name || `${unitLabel} ${i + 1}`}{u.values.vin || u.values.full_vin ? ` · VIN ${u.values.vin || u.values.full_vin}` : ""}</li>
             ))}
           </ul>
         </div>
@@ -238,7 +255,7 @@ function UnitFields({ fields, prefix, values, onChange, invalid }: { fields: For
                 const name = `${prefix}${f.column}`;
                 const value = values[f.column] ?? "";
                 const isInvalid = invalid.has(f.column);
-                const base = `w-full bg-white border rounded-md px-3 py-2 text-sm text-fcr-ink focus:outline-none focus:ring-2 focus:ring-fcr-red/20 ${isInvalid ? "border-fcr-red" : "border-fcr-line focus:border-fcr-red"}`;
+                const base = inputBase(isInvalid);
                 const wide = f.input === "textarea";
                 return (
                   <div key={f.column} className={wide ? "sm:col-span-2 lg:col-span-3" : ""}>

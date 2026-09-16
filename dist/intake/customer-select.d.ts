@@ -47,5 +47,6 @@ export interface CustomerContactFieldsProps {
     /** Field names flagged invalid by the server (so the control can highlight them). */
     invalidFields?: Set<string>;
 }
+export declare const inputBase: (invalid?: boolean) => string;
 export declare function CustomerContactFields({ accountEndpoint, contactEndpoint, customer, onCustomer, contact, onContact, invalidFields }: CustomerContactFieldsProps): import("react").JSX.Element;
 //# sourceMappingURL=customer-select.d.ts.map

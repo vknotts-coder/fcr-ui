@@ -40,15 +40,15 @@ export interface CustomerContactFieldsProps {
   invalidFields?: Set<string>;
 }
 
-const inputBase = (invalid?: boolean) =>
+export const inputBase = (invalid?: boolean) =>
   `w-full bg-white border rounded-md px-3 py-2 text-sm text-fcr-ink focus:outline-none focus:ring-2 focus:ring-fcr-red/20 ${
     invalid ? "border-fcr-red" : "border-fcr-line focus:border-fcr-red"
   }`;
 
-function Toggle({ mode, onPick, newLabel, disabledNew }: { mode: "existing" | "new"; onPick: (m: "existing" | "new") => void; newLabel: string; disabledNew?: boolean }) {
+function Toggle({ mode, onPick, newLabel }: { mode: "existing" | "new"; onPick: (m: "existing" | "new") => void; newLabel: string }) {
   return (
     <div className="inline-flex rounded-md border border-fcr-line overflow-hidden text-xs font-semibold uppercase tracking-wide">
-      <button type="button" onClick={() => onPick("existing")} disabled={disabledNew && false}
+      <button type="button" onClick={() => onPick("existing")}
         className={`px-3 py-1.5 ${mode === "existing" ? "bg-fcr-red text-white" : "bg-white text-fcr-steel hover:text-fcr-ink"}`}>
         Existing
       </button>
@@ -94,7 +94,13 @@ export function CustomerContactFields({ accountEndpoint, contactEndpoint, custom
               label="Search customers"
               endpoint={accountEndpoint}
               value={account}
-              onChange={(h) => onCustomer({ mode: "existing", account: h })}
+              onChange={(h) => {
+                onCustomer({ mode: "existing", account: h });
+                // A contact belongs to ONE account — changing/clearing the account must reset the
+                // contact, or a stale contact_ref (a contact of the OLD account) submits alongside the
+                // new customer_sf_id (review #8 HIGH). record-picker.tsx's contract promises this reset.
+                onContact({ mode: "existing", ref: "" });
+              }}
               invalid={inv.has("customer_sf_id")}
               placeholder="Search customers by name…"
             />
