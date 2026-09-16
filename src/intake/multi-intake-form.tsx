@@ -125,16 +125,22 @@ export default function MultiIntakeForm({
         )}
       </div>
 
-      {errors.length > 0 && (
-        <div className="bg-fcr-red/10 border border-fcr-red/40 rounded-xl p-4" role="alert">
-          <div className="text-sm font-semibold text-fcr-red mb-1">Please fix the following:</div>
-          <ul className="list-disc list-inside text-sm text-fcr-red space-y-0.5">
-            {errors.map((e, i) => (
-              <li key={i}>{e.index != null ? `${unitLabel} ${e.index + 1}: ` : ""}{e.message}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+      {/* After an add/remove the per-unit errors are keyed by a now-stale position, so drop them from
+          the banner too (the inline markers are already hidden) — only form-level errors stay until the
+          next submit re-keys everything (review #8 round-2 LOW). */}
+      {(() => {
+        const shown = restructured ? errors.filter((e) => e.index == null) : errors;
+        return shown.length > 0 ? (
+          <div className="bg-fcr-red/10 border border-fcr-red/40 rounded-xl p-4" role="alert">
+            <div className="text-sm font-semibold text-fcr-red mb-1">Please fix the following:</div>
+            <ul className="list-disc list-inside text-sm text-fcr-red space-y-0.5">
+              {shown.map((e, i) => (
+                <li key={i}>{e.index != null ? `${unitLabel} ${e.index + 1}: ` : ""}{e.message}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null;
+      })()}
 
       {/* Step 1 — customer & contact */}
       <div className={show(0)}>
