@@ -52,6 +52,9 @@ export interface FileUploadFormProps {
 }
 
 const ACCEPT = ALLOWED_TYPES.join(",");
+// Display copy derived from the core ceiling so a MAX_FILE_BYTES bump can't silently drift the
+// shown limit from the enforced one (the header's "one source of truth" claim, made literal).
+const MAX_MB = Math.round(MAX_FILE_BYTES / (1024 * 1024));
 
 export default function FileUploadForm({
   unitType,
@@ -81,7 +84,7 @@ export default function FileUploadForm({
       return;
     }
     if (file.size > MAX_FILE_BYTES) {
-      setError("File is too large (max 15 MB).");
+      setError(`File is too large (max ${MAX_MB} MB).`);
       return;
     }
 
@@ -153,7 +156,7 @@ export default function FileUploadForm({
           {pending ? "Uploading…" : "Upload"}
         </button>
       </div>
-      <p className="text-[11px] text-fcr-steel">PDF or image, up to 15 MB.</p>
+      <p className="text-[11px] text-fcr-steel">PDF or image, up to {MAX_MB} MB.</p>
     </div>
   );
 }
