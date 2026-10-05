@@ -1,12 +1,5 @@
-export type BlobUploadFn = (pathname: string, file: File, options: {
-    access: "public";
-    contentType?: string;
-    handleUploadUrl: string;
-    clientPayload?: string;
-}) => Promise<{
-    url: string;
-    pathname: string;
-}>;
+import { type BlobUploadFn } from "./blob-upload.js";
+export type { BlobUploadFn };
 export type FinalizePhotoFn = (input: {
     unitType: "truck" | "trailer";
     unitId: string;
