@@ -3,3 +3,5 @@
 // The app injects `upload` (@vercel/blob/client) + `finalize` (its "use server" action), so @fcr/ui
 // imports no app code and needs no @vercel/blob dependency.
 export { default as FileUploadForm, } from "./file-upload-form.js";
+// Photo sibling (slice 4) — client-direct upload to unit_photo, with a caption field.
+export { default as PhotoUploadForm, } from "./photo-upload-form.js";
