@@ -8,6 +8,36 @@
 // app injects `upload` + `finalize`, so @fcr/ui needs no @vercel/blob dependency.
 import { useRef, useState, useTransition, type ReactNode, type RefObject } from "react";
 import { useRouter } from "next/navigation";
+import { resolveContentType } from "@fcr/core/uploads";
+
+// Error taxonomy (fcr-trailers #49): the bare catch used to collapse every failure into "Upload failed.
+// Try again.", so a non-retryable auth/config rejection looked identical to a transient network blip. A
+// non-retryable failure is a 4xx — the client-upload token route (@fcr/core onBeforeGenerateToken + the
+// per-app authorize seam) returns 400 with a user-meaningful reason ("Not authorized.", "Not signed in.",
+// "… is not enabled.", "Bad unit reference.", …); 5xx / network is transient → the generic retry message.
+//
+// PRIMARY signal is the HTTP status the blob client surfaces on the thrown error — structural, so it does
+// NOT drift when a server message is reworded. We can't import @vercel/blob's error types (@fcr/ui stays
+// blob-free), so we DUCK-TYPE `status`/`statusCode`. Only when no status is present (opaque/network) do we
+// fall back to matching known non-retryable phrases — a best-effort last resort, not the contract.
+const NON_RETRYABLE = /not authorized|not signed in|not enabled|bad unit|not under this unit|must be|too large/i;
+function statusOf(err: unknown): number | undefined {
+  const e = err as { status?: unknown; statusCode?: unknown } | null;
+  if (typeof e?.status === "number") return e.status;
+  if (typeof e?.statusCode === "number") return e.statusCode;
+  return undefined;
+}
+function uploadErrorMessage(err: unknown, noun: string): string {
+  const msg = err instanceof Error ? err.message : "";
+  const status = statusOf(err);
+  // 4xx = the request itself was rejected (auth/flag/validation) — won't change on retry; show the reason.
+  if (status !== undefined && status >= 400 && status < 500 && msg) return msg;
+  // No status to go on (network/opaque throw): fall back to the known non-retryable server phrases.
+  if (status === undefined && msg && NON_RETRYABLE.test(msg)) return msg;
+  // eslint-disable-next-line no-console
+  console.error(`${noun} upload failed`, err); // keep the original for diagnosis; show a friendly retry
+  return `Upload failed. Try again.`;
+}
 
 // Structural subset of @vercel/blob/client `upload()` the forms use — the single definition both
 // forms import, so the seam can't drift between them. Returns at least the stored url + pathname.
@@ -81,8 +111,12 @@ export function useBlobUpload<P>(opts: UseBlobUploadOpts<P>): UseBlobUpload {
       setError(`Choose a ${opts.noun} first.`);
       return;
     }
-    // Friendly client-side checks; the token route re-enforces both at the Blob edge.
-    if (!(opts.allowed as readonly string[]).includes(file.type)) {
+    // Friendly client-side checks; the token route re-enforces both at the Blob edge. Browsers report an
+    // EMPTY file.type for valid PDFs/no-extension files and for HEIC on Chrome/Firefox, so resolve the
+    // type from the extension when it's empty (#49) — the allowlist stays strict (no empty-type hole), and
+    // a concrete type is what we then send to the Blob edge + the finalize action so they agree.
+    const contentType = resolveContentType(file.type, file.name);
+    if (!contentType || !(opts.allowed as readonly string[]).includes(contentType)) {
       setError(opts.badTypeMessage);
       return;
     }
@@ -98,7 +132,7 @@ export function useBlobUpload<P>(opts: UseBlobUploadOpts<P>): UseBlobUpload {
       try {
         const blob = await opts.upload(pathname, file, {
           access: "public",
-          contentType: file.type,
+          contentType,
           handleUploadUrl: opts.uploadUrl,
           clientPayload: JSON.stringify({ unitType: opts.unitType, unitId: opts.unitId }),
         });
@@ -107,7 +141,7 @@ export function useBlobUpload<P>(opts: UseBlobUploadOpts<P>): UseBlobUpload {
             filename: safeName,
             blobUrl: blob.url,
             blobPathname: blob.pathname,
-            contentType: file.type,
+            contentType,
             byteSize: file.size,
           }),
         );
@@ -119,8 +153,8 @@ export function useBlobUpload<P>(opts: UseBlobUploadOpts<P>): UseBlobUpload {
         if (inputRef.current) inputRef.current.value = "";
         opts.onSuccess?.();
         router.refresh();
-      } catch {
-        setError("Upload failed. Try again.");
+      } catch (err) {
+        setError(uploadErrorMessage(err, opts.noun));
       }
     });
   }
