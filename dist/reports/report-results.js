@@ -32,20 +32,28 @@ function TabularGrid({ result, fmt }) {
                                 const linked = ci === 0 && href && text !== "—";
                                 return (_jsx("td", { className: c.numeric ? tdNum : td, children: linked ? (_jsx(Link, { href: href, className: "text-fcr-red hover:underline font-medium", children: text })) : (text) }, c.key));
                             }) }, i));
-                    }) }), result.totals && result.totals.length > 0 ? (
-                // Grand-total FOOTER for a tabular report (def.grandTotals) — detail rows above are unaffected.
-                // Each total carries its source `field`, so it sits under THAT column; the first column gets the
-                // "Total" label. A count total (field "*", not a column) has no column to sit under and isn't shown
-                // here — the only tabular-footer consumer (the WIP "Finished amount" sum) totals a real column.
-                _jsx("tfoot", { children: _jsx("tr", { className: "font-bold border-t-2 border-fcr-line", children: result.columns.map((c, ci) => {
-                            const total = result.totals.find((t) => t.field === c.key);
-                            const cls = `${c.numeric ? tdNum : td} font-bold`;
-                            if (total)
-                                return _jsx("td", { className: cls, children: renderSummaryCell(total.value, c, fmt) }, c.key);
-                            if (ci === 0)
-                                return _jsx("td", { className: cls, children: "Total" }, c.key);
-                            return _jsx("td", { className: cls }, c.key);
-                        }) }) })) : null] }) }));
+                    }) }), (() => {
+                    // Grand-total FOOTER for a tabular report (def.grandTotals) — detail rows above are unaffected.
+                    // Each total sits under its source `field` column; the first column gets the "Total" label. Skip
+                    // COUNT totals (a row-count has no per-column home — field "*" matches nothing, and a crafted count
+                    // on a real column must not render the count there), and render the row only when ≥1 remaining total
+                    // maps to a visible column (no bare "Total" row). The engine forbids >1 grandTotal per field, so each
+                    // column maps to at most one total. Format with renderCell — the SAME path the detail cells use, so
+                    // a column's footer and body can't drift.
+                    const footTotals = (result.totals ?? []).filter((t) => t.agg !== "count");
+                    const byField = new Map(footTotals.map((t) => [t.field, t]));
+                    if (!result.columns.some((c) => byField.has(c.key)))
+                        return null;
+                    return (_jsx("tfoot", { children: _jsx("tr", { className: "font-bold border-t-2 border-fcr-line", children: result.columns.map((c, ci) => {
+                                const total = byField.get(c.key);
+                                const cls = `${c.numeric ? tdNum : td} font-bold`;
+                                if (total)
+                                    return _jsx("td", { className: cls, children: renderCell(total.value, c, fmt) }, c.key);
+                                if (ci === 0)
+                                    return _jsx("td", { className: cls, children: "Total" }, c.key);
+                                return _jsx("td", { className: cls }, c.key);
+                            }) }) }));
+                })()] }) }));
 }
 function SummaryGrid({ result, fmt }) {
     const groupLabel = result.group.bucket

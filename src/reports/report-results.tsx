@@ -67,23 +67,31 @@ function TabularGrid({ result, fmt }: { result: TabularResult; fmt: CellFormatte
             );
           })}
         </tbody>
-        {result.totals && result.totals.length > 0 ? (
+        {(() => {
           // Grand-total FOOTER for a tabular report (def.grandTotals) — detail rows above are unaffected.
-          // Each total carries its source `field`, so it sits under THAT column; the first column gets the
-          // "Total" label. A count total (field "*", not a column) has no column to sit under and isn't shown
-          // here — the only tabular-footer consumer (the WIP "Finished amount" sum) totals a real column.
-          <tfoot>
-            <tr className="font-bold border-t-2 border-fcr-line">
-              {result.columns.map((c, ci) => {
-                const total = result.totals!.find((t) => t.field === c.key);
-                const cls = `${c.numeric ? tdNum : td} font-bold`;
-                if (total) return <td key={c.key} className={cls}>{renderSummaryCell(total.value, c, fmt)}</td>;
-                if (ci === 0) return <td key={c.key} className={cls}>Total</td>;
-                return <td key={c.key} className={cls} />;
-              })}
-            </tr>
-          </tfoot>
-        ) : null}
+          // Each total sits under its source `field` column; the first column gets the "Total" label. Skip
+          // COUNT totals (a row-count has no per-column home — field "*" matches nothing, and a crafted count
+          // on a real column must not render the count there), and render the row only when ≥1 remaining total
+          // maps to a visible column (no bare "Total" row). The engine forbids >1 grandTotal per field, so each
+          // column maps to at most one total. Format with renderCell — the SAME path the detail cells use, so
+          // a column's footer and body can't drift.
+          const footTotals = (result.totals ?? []).filter((t) => t.agg !== "count");
+          const byField = new Map(footTotals.map((t) => [t.field, t]));
+          if (!result.columns.some((c) => byField.has(c.key))) return null;
+          return (
+            <tfoot>
+              <tr className="font-bold border-t-2 border-fcr-line">
+                {result.columns.map((c, ci) => {
+                  const total = byField.get(c.key);
+                  const cls = `${c.numeric ? tdNum : td} font-bold`;
+                  if (total) return <td key={c.key} className={cls}>{renderCell(total.value, c, fmt)}</td>;
+                  if (ci === 0) return <td key={c.key} className={cls}>Total</td>;
+                  return <td key={c.key} className={cls} />;
+                })}
+              </tr>
+            </tfoot>
+          );
+        })()}
       </table>
     </div>
   );
