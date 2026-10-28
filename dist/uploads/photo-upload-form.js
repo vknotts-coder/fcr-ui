@@ -34,5 +34,5 @@ export default function PhotoUploadForm({ unitType, unitId, upload, finalize, up
         }),
         onSuccess: () => setCaption(""),
     });
-    return (_jsx(UploadFormView, { headerLabel: "Upload a photo", accept: ACCEPT, fileAriaLabel: "Photo", extra: { ariaLabel: "Caption", placeholder: "caption (optional)", value: caption, onChange: setCaption }, helperText: `JPEG, PNG, HEIC, or WebP, up to ${state.maxMb} MB.`, state: state }));
+    return (_jsx(UploadFormView, { headerLabel: "Upload photos", accept: ACCEPT, fileAriaLabel: "Photo", extra: { ariaLabel: "Caption", placeholder: "caption (optional)", value: caption, onChange: setCaption }, helperText: `JPEG, PNG, HEIC, or WebP, up to ${state.maxMb} MB each. Select one or more; the caption applies to all.`, state: state }));
 }

@@ -44,6 +44,8 @@ export type UseBlobUpload = {
     inputRef: RefObject<HTMLInputElement | null>;
     error: string | null;
     ok: boolean;
+    /** Aggregate success summary, e.g. "Uploaded 3 files." — null until a batch lands at least one file. */
+    okMessage: string | null;
     pending: boolean;
     maxMb: number;
     submit: () => void;

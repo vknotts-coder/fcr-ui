@@ -41,73 +41,130 @@ function uploadErrorMessage(err, noun) {
     console.error(`${noun} upload failed`, err); // keep the original for diagnosis; show a friendly retry
     return `Upload failed. Try again.`;
 }
+// Multi-file batch limits. A bounded pool keeps a large multi-select (dozens of phone photos is realistic
+// for a collision shop) from firing every upload+finalize at the token route / Neon pool / blob rate limit
+// at once; MAX_BATCH_FILES caps the burst up front with a clear message rather than letting it degrade.
+const UPLOAD_CONCURRENCY = 4;
+const MAX_BATCH_FILES = 50;
+// Minimal ordered concurrency pool (no dependency): run `fn` over `items` with at most `limit` in flight,
+// results in input order. `fn` MUST resolve (never reject) — callers catch per item — so Promise.all can't
+// abort the batch on one failure.
+async function runPool(items, limit, fn) {
+    const results = new Array(items.length);
+    let next = 0;
+    async function worker() {
+        while (next < items.length) {
+            const i = next++;
+            results[i] = await fn(items[i]);
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+    return results;
+}
 export function useBlobUpload(opts) {
     const inputRef = useRef(null);
     const [error, setError] = useState(null);
     const [ok, setOk] = useState(false);
+    const [okMessage, setOkMessage] = useState(null);
     const [pending, start] = useTransition();
     const router = useRouter();
     const maxMb = Math.round(opts.maxBytes / (1024 * 1024));
-    const Noun = opts.noun.charAt(0).toUpperCase() + opts.noun.slice(1);
     function submit() {
         setError(null);
         setOk(false);
-        const file = inputRef.current?.files?.[0];
-        if (!file) {
+        setOkMessage(null);
+        const chosen = inputRef.current?.files;
+        const files = chosen ? Array.from(chosen) : [];
+        if (files.length === 0) {
             setError(`Choose a ${opts.noun} first.`);
             return;
         }
-        // Friendly client-side checks; the token route re-enforces both at the Blob edge. Browsers report an
-        // EMPTY file.type for valid PDFs/no-extension files and for HEIC on Chrome/Firefox, so resolve the
-        // type from the extension when it's empty (#49) — the allowlist stays strict (no empty-type hole), and
-        // a concrete type is what we then send to the Blob edge + the finalize action so they agree.
-        const contentType = resolveContentType(file.type, file.name);
-        if (!contentType || !opts.allowed.includes(contentType)) {
-            setError(opts.badTypeMessage);
+        if (files.length > MAX_BATCH_FILES) {
+            setError(`Too many ${opts.noun}s at once — select at most ${MAX_BATCH_FILES}.`);
             return;
         }
-        if (file.size > opts.maxBytes) {
-            setError(`${Noun} is too large (max ${maxMb} MB).`);
+        // Friendly client-side checks per file; the token route + write core re-enforce both at the Blob edge.
+        // Browsers report an EMPTY file.type for valid PDFs/no-extension files and for HEIC on Chrome/Firefox,
+        // so resolve the type from the extension when it's empty (#49) — the allowlist stays strict (no
+        // empty-type hole). An invalid pick is set aside BY NAME and reported; the valid files still upload, so
+        // one bad file in a multi-select doesn't sink the whole batch.
+        const valid = [];
+        const problems = [];
+        for (const file of files) {
+            const label = file.name || opts.defaultName;
+            const contentType = resolveContentType(file.type, file.name);
+            if (!contentType || !opts.allowed.includes(contentType)) {
+                problems.push(`${label}: ${opts.badTypeMessage}`);
+            }
+            else if (file.size > opts.maxBytes) {
+                problems.push(`${label}: too large (max ${maxMb} MB).`);
+            }
+            else {
+                valid.push({ file, contentType });
+            }
+        }
+        if (valid.length === 0) {
+            setError(problems.join(" ") || opts.badTypeMessage);
             return;
         }
-        const safeName = (file.name || opts.defaultName).replace(/[^\w.\-]/g, "_").slice(-100) || opts.defaultName;
-        const pathname = `${opts.prefix}/${opts.unitType}/${opts.unitId}/${Date.now()}-${safeName}`;
         start(async () => {
-            try {
-                const blob = await opts.upload(pathname, file, {
-                    access: "public",
-                    contentType,
-                    handleUploadUrl: opts.uploadUrl,
-                    clientPayload: JSON.stringify({ unitType: opts.unitType, unitId: opts.unitId }),
-                });
-                const res = await opts.finalize(opts.buildPayload({
-                    filename: safeName,
-                    blobUrl: blob.url,
-                    blobPathname: blob.pathname,
-                    contentType,
-                    byteSize: file.size,
-                }));
-                if (!res.ok) {
-                    setError(res.errors?.join(" ") || `Could not save the ${opts.noun}.`);
-                    return;
+            const outcomes = await runPool(valid, UPLOAD_CONCURRENCY, async ({ file, contentType }) => {
+                const label = file.name || opts.defaultName; // used by the catch too; a string op that cannot throw
+                try {
+                    // All the per-file setup lives INSIDE the try so the pool's "fn never rejects" contract holds
+                    // literally — even though these are throw-free string ops today, a reject here would be swallowed
+                    // by useTransition's start() with no setError (a silent failure).
+                    const safeName = label.replace(/[^\w.\-]/g, "_").slice(-100) || opts.defaultName;
+                    const token = Math.random().toString(36).slice(2, 8);
+                    const pathname = `${opts.prefix}/${opts.unitType}/${opts.unitId}/${Date.now()}-${token}-${safeName}`;
+                    const blob = await opts.upload(pathname, file, {
+                        access: "public",
+                        contentType,
+                        handleUploadUrl: opts.uploadUrl,
+                        clientPayload: JSON.stringify({ unitType: opts.unitType, unitId: opts.unitId }),
+                    });
+                    const res = await opts.finalize(opts.buildPayload({
+                        filename: safeName,
+                        blobUrl: blob.url,
+                        blobPathname: blob.pathname,
+                        contentType,
+                        byteSize: file.size,
+                    }));
+                    if (!res.ok)
+                        return { ok: false, label, reason: res.errors?.join(" ") || `Could not save ${safeName}.` };
+                    return { ok: true, label };
                 }
+                catch (err) {
+                    return { ok: false, label, reason: uploadErrorMessage(err, opts.noun) };
+                }
+            });
+            const failures = [...problems];
+            let succeeded = 0;
+            for (const o of outcomes) {
+                if (o.ok)
+                    succeeded += 1;
+                else
+                    failures.push(`${o.label}: ${o.reason}`);
+            }
+            if (succeeded > 0) {
                 setOk(true);
+                setOkMessage(`Uploaded ${succeeded} ${opts.noun}${succeeded === 1 ? "" : "s"}.`);
+                // Clear the picker so a stray re-submit can't re-upload what just landed; `failures` names any that
+                // did NOT land, so the user can re-pick just those (no duplicate rows for the ones that succeeded).
                 if (inputRef.current)
                     inputRef.current.value = "";
                 opts.onSuccess?.();
                 router.refresh();
             }
-            catch (err) {
-                setError(uploadErrorMessage(err, opts.noun));
-            }
+            setError(failures.length > 0 ? failures.join(" ") : null);
         });
     }
-    return { inputRef, error, ok, pending, maxMb, submit };
+    return { inputRef, error, ok, okMessage, pending, maxMb, submit };
 }
 // The shared presentational shell (identical markup the two forms used). A form supplies its accept
 // list, header/helper copy, the one extra text field (purpose/caption), and the hook outputs.
 export function UploadFormView(props) {
-    const { inputRef, error, ok, pending, submit } = props.state;
+    const { inputRef, error, ok, okMessage, pending, submit } = props.state;
     const field = "border-2 border-fcr-line rounded px-2 py-1 text-sm";
-    return (_jsxs("div", { className: "mt-3 border-t border-fcr-line pt-3 space-y-3", children: [_jsx("div", { className: "text-[11px] uppercase tracking-widest text-fcr-steel", children: props.headerLabel }), _jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-2", children: [_jsx("input", { ref: inputRef, type: "file", "aria-label": props.fileAriaLabel, accept: props.accept, className: "text-sm file:mr-2 file:rounded file:border-0 file:bg-fcr-ink file:text-white file:px-3 file:py-1 file:text-xs" }), _jsx("input", { "aria-label": props.extra.ariaLabel, placeholder: props.extra.placeholder, value: props.extra.value, onChange: (e) => props.extra.onChange(e.target.value), className: field })] }), _jsxs("div", { className: "flex items-center justify-between gap-3", children: [_jsxs("div", { className: "text-sm", children: [error && _jsx("span", { className: "text-fcr-red", children: error }), ok && _jsx("span", { className: "text-green-700", children: "Uploaded." })] }), _jsx("button", { onClick: submit, disabled: pending, className: "px-4 py-1.5 text-sm font-semibold bg-fcr-ink text-white rounded hover:bg-fcr-red disabled:opacity-50", children: pending ? "Uploading…" : "Upload" })] }), _jsx("p", { className: "text-[11px] text-fcr-steel", children: props.helperText })] }));
+    return (_jsxs("div", { className: "mt-3 border-t border-fcr-line pt-3 space-y-3", children: [_jsx("div", { className: "text-[11px] uppercase tracking-widest text-fcr-steel", children: props.headerLabel }), _jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-2", children: [_jsx("input", { ref: inputRef, type: "file", multiple: true, "aria-label": props.fileAriaLabel, accept: props.accept, className: "text-sm file:mr-2 file:rounded file:border-0 file:bg-fcr-ink file:text-white file:px-3 file:py-1 file:text-xs" }), _jsx("input", { "aria-label": props.extra.ariaLabel, placeholder: props.extra.placeholder, value: props.extra.value, onChange: (e) => props.extra.onChange(e.target.value), className: field })] }), _jsxs("div", { className: "flex items-center justify-between gap-3", children: [_jsxs("div", { className: "text-sm", children: [error && _jsx("span", { className: "text-fcr-red", children: error }), ok && okMessage && _jsx("span", { className: "text-green-700", children: okMessage })] }), _jsx("button", { onClick: submit, disabled: pending, className: "px-4 py-1.5 text-sm font-semibold bg-fcr-ink text-white rounded hover:bg-fcr-red disabled:opacity-50", children: pending ? "Uploading…" : "Upload" })] }), _jsx("p", { className: "text-[11px] text-fcr-steel", children: props.helperText })] }));
 }

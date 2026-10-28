@@ -66,11 +66,11 @@ export default function PhotoUploadForm({
 
   return (
     <UploadFormView
-      headerLabel="Upload a photo"
+      headerLabel="Upload photos"
       accept={ACCEPT}
       fileAriaLabel="Photo"
       extra={{ ariaLabel: "Caption", placeholder: "caption (optional)", value: caption, onChange: setCaption }}
-      helperText={`JPEG, PNG, HEIC, or WebP, up to ${state.maxMb} MB.`}
+      helperText={`JPEG, PNG, HEIC, or WebP, up to ${state.maxMb} MB each. Select one or more; the caption applies to all.`}
       state={state}
     />
   );
