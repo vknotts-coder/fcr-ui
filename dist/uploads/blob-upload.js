@@ -109,11 +109,14 @@ export function useBlobUpload(opts) {
         }
         start(async () => {
             const outcomes = await runPool(valid, UPLOAD_CONCURRENCY, async ({ file, contentType }) => {
-                const label = file.name || opts.defaultName;
-                const safeName = label.replace(/[^\w.\-]/g, "_").slice(-100) || opts.defaultName;
-                const token = Math.random().toString(36).slice(2, 8);
-                const pathname = `${opts.prefix}/${opts.unitType}/${opts.unitId}/${Date.now()}-${token}-${safeName}`;
+                const label = file.name || opts.defaultName; // used by the catch too; a string op that cannot throw
                 try {
+                    // All the per-file setup lives INSIDE the try so the pool's "fn never rejects" contract holds
+                    // literally — even though these are throw-free string ops today, a reject here would be swallowed
+                    // by useTransition's start() with no setError (a silent failure).
+                    const safeName = label.replace(/[^\w.\-]/g, "_").slice(-100) || opts.defaultName;
+                    const token = Math.random().toString(36).slice(2, 8);
+                    const pathname = `${opts.prefix}/${opts.unitType}/${opts.unitId}/${Date.now()}-${token}-${safeName}`;
                     const blob = await opts.upload(pathname, file, {
                         access: "public",
                         contentType,
