@@ -70,7 +70,7 @@ export default function FileUploadForm({
 
   return (
     <UploadFormView
-      headerLabel="Upload a receipt / file"
+      headerLabel="Upload receipts / files"
       accept={ACCEPT}
       fileAriaLabel="File"
       extra={{
@@ -79,7 +79,7 @@ export default function FileUploadForm({
         value: purpose,
         onChange: setPurpose,
       }}
-      helperText={`PDF or image, up to ${state.maxMb} MB.`}
+      helperText={`PDF or image, up to ${state.maxMb} MB each. Select one or more; the purpose applies to all.`}
       state={state}
     />
   );

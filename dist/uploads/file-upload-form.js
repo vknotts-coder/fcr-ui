@@ -36,10 +36,10 @@ export default function FileUploadForm({ unitType, unitId, upload, finalize, upl
         }),
         onSuccess: () => setPurpose(""),
     });
-    return (_jsx(UploadFormView, { headerLabel: "Upload a receipt / file", accept: ACCEPT, fileAriaLabel: "File", extra: {
+    return (_jsx(UploadFormView, { headerLabel: "Upload receipts / files", accept: ACCEPT, fileAriaLabel: "File", extra: {
             ariaLabel: "Purpose",
             placeholder: "purpose (e.g. tow bill for accounting)",
             value: purpose,
             onChange: setPurpose,
-        }, helperText: `PDF or image, up to ${state.maxMb} MB.`, state: state }));
+        }, helperText: `PDF or image, up to ${state.maxMb} MB each. Select one or more; the purpose applies to all.`, state: state }));
 }

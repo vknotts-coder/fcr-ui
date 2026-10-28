@@ -45,35 +45,52 @@ export function useBlobUpload(opts) {
     const inputRef = useRef(null);
     const [error, setError] = useState(null);
     const [ok, setOk] = useState(false);
+    const [okMessage, setOkMessage] = useState(null);
     const [pending, start] = useTransition();
     const router = useRouter();
     const maxMb = Math.round(opts.maxBytes / (1024 * 1024));
-    const Noun = opts.noun.charAt(0).toUpperCase() + opts.noun.slice(1);
     function submit() {
         setError(null);
         setOk(false);
-        const file = inputRef.current?.files?.[0];
-        if (!file) {
+        setOkMessage(null);
+        const chosen = inputRef.current?.files;
+        const files = chosen ? Array.from(chosen) : [];
+        if (files.length === 0) {
             setError(`Choose a ${opts.noun} first.`);
             return;
         }
-        // Friendly client-side checks; the token route re-enforces both at the Blob edge. Browsers report an
-        // EMPTY file.type for valid PDFs/no-extension files and for HEIC on Chrome/Firefox, so resolve the
-        // type from the extension when it's empty (#49) — the allowlist stays strict (no empty-type hole), and
-        // a concrete type is what we then send to the Blob edge + the finalize action so they agree.
-        const contentType = resolveContentType(file.type, file.name);
-        if (!contentType || !opts.allowed.includes(contentType)) {
-            setError(opts.badTypeMessage);
+        // Friendly client-side checks per file; the token route + write core re-enforce both at the Blob edge.
+        // Browsers report an EMPTY file.type for valid PDFs/no-extension files and for HEIC on Chrome/Firefox,
+        // so resolve the type from the extension when it's empty (#49) — the allowlist stays strict (no
+        // empty-type hole). An invalid pick is set aside BY NAME and reported; the valid files still upload, so
+        // one bad file in a multi-select doesn't sink the whole batch.
+        const valid = [];
+        const problems = [];
+        for (const file of files) {
+            const label = file.name || opts.defaultName;
+            const contentType = resolveContentType(file.type, file.name);
+            if (!contentType || !opts.allowed.includes(contentType)) {
+                problems.push(`${label}: ${opts.badTypeMessage}`);
+            }
+            else if (file.size > opts.maxBytes) {
+                problems.push(`${label}: too large (max ${maxMb} MB).`);
+            }
+            else {
+                valid.push({ file, contentType });
+            }
+        }
+        if (valid.length === 0) {
+            setError(problems.join(" ") || opts.badTypeMessage);
             return;
         }
-        if (file.size > opts.maxBytes) {
-            setError(`${Noun} is too large (max ${maxMb} MB).`);
-            return;
-        }
-        const safeName = (file.name || opts.defaultName).replace(/[^\w.\-]/g, "_").slice(-100) || opts.defaultName;
-        const pathname = `${opts.prefix}/${opts.unitType}/${opts.unitId}/${Date.now()}-${safeName}`;
         start(async () => {
-            try {
+            // Upload + finalize each valid file CONCURRENTLY; one rejection must not abort the others, so collect
+            // per-file outcomes with allSettled rather than a throwing loop. A random token in the pathname keeps
+            // same-named files picked in the same millisecond from colliding on the blob key.
+            const outcomes = await Promise.allSettled(valid.map(async ({ file, contentType }) => {
+                const safeName = (file.name || opts.defaultName).replace(/[^\w.\-]/g, "_").slice(-100) || opts.defaultName;
+                const token = Math.random().toString(36).slice(2, 8);
+                const pathname = `${opts.prefix}/${opts.unitType}/${opts.unitId}/${Date.now()}-${token}-${safeName}`;
                 const blob = await opts.upload(pathname, file, {
                     access: "public",
                     contentType,
@@ -87,27 +104,40 @@ export function useBlobUpload(opts) {
                     contentType,
                     byteSize: file.size,
                 }));
-                if (!res.ok) {
-                    setError(res.errors?.join(" ") || `Could not save the ${opts.noun}.`);
-                    return;
+                if (!res.ok)
+                    throw new Error(res.errors?.join(" ") || `Could not save ${safeName}.`);
+                return safeName;
+            }));
+            const failures = [...problems];
+            let succeeded = 0;
+            outcomes.forEach((o, i) => {
+                if (o.status === "fulfilled") {
+                    succeeded += 1;
                 }
+                else {
+                    const label = valid[i]?.file.name || opts.defaultName;
+                    failures.push(`${label}: ${uploadErrorMessage(o.reason, opts.noun)}`);
+                }
+            });
+            if (succeeded > 0) {
                 setOk(true);
+                setOkMessage(`Uploaded ${succeeded} ${opts.noun}${succeeded === 1 ? "" : "s"}.`);
+                // Clear the picker so a stray re-submit can't re-upload what just landed; `failures` names any that
+                // did NOT land, so the user can re-pick just those (no duplicate rows for the ones that succeeded).
                 if (inputRef.current)
                     inputRef.current.value = "";
                 opts.onSuccess?.();
                 router.refresh();
             }
-            catch (err) {
-                setError(uploadErrorMessage(err, opts.noun));
-            }
+            setError(failures.length > 0 ? failures.join(" ") : null);
         });
     }
-    return { inputRef, error, ok, pending, maxMb, submit };
+    return { inputRef, error, ok, okMessage, pending, maxMb, submit };
 }
 // The shared presentational shell (identical markup the two forms used). A form supplies its accept
 // list, header/helper copy, the one extra text field (purpose/caption), and the hook outputs.
 export function UploadFormView(props) {
-    const { inputRef, error, ok, pending, submit } = props.state;
+    const { inputRef, error, ok, okMessage, pending, submit } = props.state;
     const field = "border-2 border-fcr-line rounded px-2 py-1 text-sm";
-    return (_jsxs("div", { className: "mt-3 border-t border-fcr-line pt-3 space-y-3", children: [_jsx("div", { className: "text-[11px] uppercase tracking-widest text-fcr-steel", children: props.headerLabel }), _jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-2", children: [_jsx("input", { ref: inputRef, type: "file", "aria-label": props.fileAriaLabel, accept: props.accept, className: "text-sm file:mr-2 file:rounded file:border-0 file:bg-fcr-ink file:text-white file:px-3 file:py-1 file:text-xs" }), _jsx("input", { "aria-label": props.extra.ariaLabel, placeholder: props.extra.placeholder, value: props.extra.value, onChange: (e) => props.extra.onChange(e.target.value), className: field })] }), _jsxs("div", { className: "flex items-center justify-between gap-3", children: [_jsxs("div", { className: "text-sm", children: [error && _jsx("span", { className: "text-fcr-red", children: error }), ok && _jsx("span", { className: "text-green-700", children: "Uploaded." })] }), _jsx("button", { onClick: submit, disabled: pending, className: "px-4 py-1.5 text-sm font-semibold bg-fcr-ink text-white rounded hover:bg-fcr-red disabled:opacity-50", children: pending ? "Uploading…" : "Upload" })] }), _jsx("p", { className: "text-[11px] text-fcr-steel", children: props.helperText })] }));
+    return (_jsxs("div", { className: "mt-3 border-t border-fcr-line pt-3 space-y-3", children: [_jsx("div", { className: "text-[11px] uppercase tracking-widest text-fcr-steel", children: props.headerLabel }), _jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-2", children: [_jsx("input", { ref: inputRef, type: "file", multiple: true, "aria-label": props.fileAriaLabel, accept: props.accept, className: "text-sm file:mr-2 file:rounded file:border-0 file:bg-fcr-ink file:text-white file:px-3 file:py-1 file:text-xs" }), _jsx("input", { "aria-label": props.extra.ariaLabel, placeholder: props.extra.placeholder, value: props.extra.value, onChange: (e) => props.extra.onChange(e.target.value), className: field })] }), _jsxs("div", { className: "flex items-center justify-between gap-3", children: [_jsxs("div", { className: "text-sm", children: [error && _jsx("span", { className: "text-fcr-red", children: error }), ok && _jsx("span", { className: "text-green-700", children: okMessage ?? "Uploaded." })] }), _jsx("button", { onClick: submit, disabled: pending, className: "px-4 py-1.5 text-sm font-semibold bg-fcr-ink text-white rounded hover:bg-fcr-red disabled:opacity-50", children: pending ? "Uploading…" : "Upload" })] }), _jsx("p", { className: "text-[11px] text-fcr-steel", children: props.helperText })] }));
 }
