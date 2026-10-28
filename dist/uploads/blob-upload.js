@@ -41,6 +41,26 @@ function uploadErrorMessage(err, noun) {
     console.error(`${noun} upload failed`, err); // keep the original for diagnosis; show a friendly retry
     return `Upload failed. Try again.`;
 }
+// Multi-file batch limits. A bounded pool keeps a large multi-select (dozens of phone photos is realistic
+// for a collision shop) from firing every upload+finalize at the token route / Neon pool / blob rate limit
+// at once; MAX_BATCH_FILES caps the burst up front with a clear message rather than letting it degrade.
+const UPLOAD_CONCURRENCY = 4;
+const MAX_BATCH_FILES = 50;
+// Minimal ordered concurrency pool (no dependency): run `fn` over `items` with at most `limit` in flight,
+// results in input order. `fn` MUST resolve (never reject) — callers catch per item — so Promise.all can't
+// abort the batch on one failure.
+async function runPool(items, limit, fn) {
+    const results = new Array(items.length);
+    let next = 0;
+    async function worker() {
+        while (next < items.length) {
+            const i = next++;
+            results[i] = await fn(items[i]);
+        }
+    }
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+    return results;
+}
 export function useBlobUpload(opts) {
     const inputRef = useRef(null);
     const [error, setError] = useState(null);
@@ -57,6 +77,10 @@ export function useBlobUpload(opts) {
         const files = chosen ? Array.from(chosen) : [];
         if (files.length === 0) {
             setError(`Choose a ${opts.noun} first.`);
+            return;
+        }
+        if (files.length > MAX_BATCH_FILES) {
+            setError(`Too many ${opts.noun}s at once — select at most ${MAX_BATCH_FILES}.`);
             return;
         }
         // Friendly client-side checks per file; the token route + write core re-enforce both at the Blob edge.
@@ -84,41 +108,41 @@ export function useBlobUpload(opts) {
             return;
         }
         start(async () => {
-            // Upload + finalize each valid file CONCURRENTLY; one rejection must not abort the others, so collect
-            // per-file outcomes with allSettled rather than a throwing loop. A random token in the pathname keeps
-            // same-named files picked in the same millisecond from colliding on the blob key.
-            const outcomes = await Promise.allSettled(valid.map(async ({ file, contentType }) => {
-                const safeName = (file.name || opts.defaultName).replace(/[^\w.\-]/g, "_").slice(-100) || opts.defaultName;
+            const outcomes = await runPool(valid, UPLOAD_CONCURRENCY, async ({ file, contentType }) => {
+                const label = file.name || opts.defaultName;
+                const safeName = label.replace(/[^\w.\-]/g, "_").slice(-100) || opts.defaultName;
                 const token = Math.random().toString(36).slice(2, 8);
                 const pathname = `${opts.prefix}/${opts.unitType}/${opts.unitId}/${Date.now()}-${token}-${safeName}`;
-                const blob = await opts.upload(pathname, file, {
-                    access: "public",
-                    contentType,
-                    handleUploadUrl: opts.uploadUrl,
-                    clientPayload: JSON.stringify({ unitType: opts.unitType, unitId: opts.unitId }),
-                });
-                const res = await opts.finalize(opts.buildPayload({
-                    filename: safeName,
-                    blobUrl: blob.url,
-                    blobPathname: blob.pathname,
-                    contentType,
-                    byteSize: file.size,
-                }));
-                if (!res.ok)
-                    throw new Error(res.errors?.join(" ") || `Could not save ${safeName}.`);
-                return safeName;
-            }));
-            const failures = [...problems];
-            let succeeded = 0;
-            outcomes.forEach((o, i) => {
-                if (o.status === "fulfilled") {
-                    succeeded += 1;
+                try {
+                    const blob = await opts.upload(pathname, file, {
+                        access: "public",
+                        contentType,
+                        handleUploadUrl: opts.uploadUrl,
+                        clientPayload: JSON.stringify({ unitType: opts.unitType, unitId: opts.unitId }),
+                    });
+                    const res = await opts.finalize(opts.buildPayload({
+                        filename: safeName,
+                        blobUrl: blob.url,
+                        blobPathname: blob.pathname,
+                        contentType,
+                        byteSize: file.size,
+                    }));
+                    if (!res.ok)
+                        return { ok: false, label, reason: res.errors?.join(" ") || `Could not save ${safeName}.` };
+                    return { ok: true, label };
                 }
-                else {
-                    const label = valid[i]?.file.name || opts.defaultName;
-                    failures.push(`${label}: ${uploadErrorMessage(o.reason, opts.noun)}`);
+                catch (err) {
+                    return { ok: false, label, reason: uploadErrorMessage(err, opts.noun) };
                 }
             });
+            const failures = [...problems];
+            let succeeded = 0;
+            for (const o of outcomes) {
+                if (o.ok)
+                    succeeded += 1;
+                else
+                    failures.push(`${o.label}: ${o.reason}`);
+            }
             if (succeeded > 0) {
                 setOk(true);
                 setOkMessage(`Uploaded ${succeeded} ${opts.noun}${succeeded === 1 ? "" : "s"}.`);
@@ -139,5 +163,5 @@ export function useBlobUpload(opts) {
 export function UploadFormView(props) {
     const { inputRef, error, ok, okMessage, pending, submit } = props.state;
     const field = "border-2 border-fcr-line rounded px-2 py-1 text-sm";
-    return (_jsxs("div", { className: "mt-3 border-t border-fcr-line pt-3 space-y-3", children: [_jsx("div", { className: "text-[11px] uppercase tracking-widest text-fcr-steel", children: props.headerLabel }), _jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-2", children: [_jsx("input", { ref: inputRef, type: "file", multiple: true, "aria-label": props.fileAriaLabel, accept: props.accept, className: "text-sm file:mr-2 file:rounded file:border-0 file:bg-fcr-ink file:text-white file:px-3 file:py-1 file:text-xs" }), _jsx("input", { "aria-label": props.extra.ariaLabel, placeholder: props.extra.placeholder, value: props.extra.value, onChange: (e) => props.extra.onChange(e.target.value), className: field })] }), _jsxs("div", { className: "flex items-center justify-between gap-3", children: [_jsxs("div", { className: "text-sm", children: [error && _jsx("span", { className: "text-fcr-red", children: error }), ok && _jsx("span", { className: "text-green-700", children: okMessage ?? "Uploaded." })] }), _jsx("button", { onClick: submit, disabled: pending, className: "px-4 py-1.5 text-sm font-semibold bg-fcr-ink text-white rounded hover:bg-fcr-red disabled:opacity-50", children: pending ? "Uploading…" : "Upload" })] }), _jsx("p", { className: "text-[11px] text-fcr-steel", children: props.helperText })] }));
+    return (_jsxs("div", { className: "mt-3 border-t border-fcr-line pt-3 space-y-3", children: [_jsx("div", { className: "text-[11px] uppercase tracking-widest text-fcr-steel", children: props.headerLabel }), _jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 gap-2", children: [_jsx("input", { ref: inputRef, type: "file", multiple: true, "aria-label": props.fileAriaLabel, accept: props.accept, className: "text-sm file:mr-2 file:rounded file:border-0 file:bg-fcr-ink file:text-white file:px-3 file:py-1 file:text-xs" }), _jsx("input", { "aria-label": props.extra.ariaLabel, placeholder: props.extra.placeholder, value: props.extra.value, onChange: (e) => props.extra.onChange(e.target.value), className: field })] }), _jsxs("div", { className: "flex items-center justify-between gap-3", children: [_jsxs("div", { className: "text-sm", children: [error && _jsx("span", { className: "text-fcr-red", children: error }), ok && okMessage && _jsx("span", { className: "text-green-700", children: okMessage })] }), _jsx("button", { onClick: submit, disabled: pending, className: "px-4 py-1.5 text-sm font-semibold bg-fcr-ink text-white rounded hover:bg-fcr-red disabled:opacity-50", children: pending ? "Uploading…" : "Upload" })] }), _jsx("p", { className: "text-[11px] text-fcr-steel", children: props.helperText })] }));
 }

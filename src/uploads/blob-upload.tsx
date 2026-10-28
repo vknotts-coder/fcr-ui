@@ -96,6 +96,28 @@ export type UseBlobUpload = {
   submit: () => void;
 };
 
+// Multi-file batch limits. A bounded pool keeps a large multi-select (dozens of phone photos is realistic
+// for a collision shop) from firing every upload+finalize at the token route / Neon pool / blob rate limit
+// at once; MAX_BATCH_FILES caps the burst up front with a clear message rather than letting it degrade.
+const UPLOAD_CONCURRENCY = 4;
+const MAX_BATCH_FILES = 50;
+
+// Minimal ordered concurrency pool (no dependency): run `fn` over `items` with at most `limit` in flight,
+// results in input order. `fn` MUST resolve (never reject) — callers catch per item — so Promise.all can't
+// abort the batch on one failure.
+async function runPool<T, R>(items: readonly T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  async function worker(): Promise<void> {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i] as T);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 export function useBlobUpload<P>(opts: UseBlobUploadOpts<P>): UseBlobUpload {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +135,10 @@ export function useBlobUpload<P>(opts: UseBlobUploadOpts<P>): UseBlobUpload {
     const files = chosen ? Array.from(chosen) : [];
     if (files.length === 0) {
       setError(`Choose a ${opts.noun} first.`);
+      return;
+    }
+    if (files.length > MAX_BATCH_FILES) {
+      setError(`Too many ${opts.noun}s at once — select at most ${MAX_BATCH_FILES}.`);
       return;
     }
 
@@ -140,44 +166,53 @@ export function useBlobUpload<P>(opts: UseBlobUploadOpts<P>): UseBlobUpload {
     }
 
     start(async () => {
-      // Upload + finalize each valid file CONCURRENTLY; one rejection must not abort the others, so collect
-      // per-file outcomes with allSettled rather than a throwing loop. A random token in the pathname keeps
-      // same-named files picked in the same millisecond from colliding on the blob key.
-      const outcomes = await Promise.allSettled(
-        valid.map(async ({ file, contentType }) => {
-          const safeName = (file.name || opts.defaultName).replace(/[^\w.\-]/g, "_").slice(-100) || opts.defaultName;
+      // Upload + finalize each valid file through a BOUNDED pool (UPLOAD_CONCURRENCY in flight) so a big
+      // multi-select doesn't swamp the token route / Neon pool / blob rate limit all at once. Each task
+      // resolves to a tagged outcome and NEVER throws. The two failure kinds are kept distinct: a genuine
+      // upload()/network rejection becomes a per-file reason via uploadErrorMessage (its HTTP-status
+      // taxonomy), while an application-level finalize failure (`!res.ok`) carries the server's reason
+      // VERBATIM — it has no HTTP status, so routing it through uploadErrorMessage would drop it to the
+      // generic "try again" (the single-file path surfaced res.errors directly). A random token in the
+      // pathname keeps same-named files picked in the same millisecond from colliding on the blob key.
+      type Outcome = { ok: true; label: string } | { ok: false; label: string; reason: string };
+      const outcomes = await runPool<{ file: File; contentType: string }, Outcome>(
+        valid,
+        UPLOAD_CONCURRENCY,
+        async ({ file, contentType }) => {
+          const label = file.name || opts.defaultName;
+          const safeName = label.replace(/[^\w.\-]/g, "_").slice(-100) || opts.defaultName;
           const token = Math.random().toString(36).slice(2, 8);
           const pathname = `${opts.prefix}/${opts.unitType}/${opts.unitId}/${Date.now()}-${token}-${safeName}`;
-          const blob = await opts.upload(pathname, file, {
-            access: "public",
-            contentType,
-            handleUploadUrl: opts.uploadUrl,
-            clientPayload: JSON.stringify({ unitType: opts.unitType, unitId: opts.unitId }),
-          });
-          const res = await opts.finalize(
-            opts.buildPayload({
-              filename: safeName,
-              blobUrl: blob.url,
-              blobPathname: blob.pathname,
+          try {
+            const blob = await opts.upload(pathname, file, {
+              access: "public",
               contentType,
-              byteSize: file.size,
-            }),
-          );
-          if (!res.ok) throw new Error(res.errors?.join(" ") || `Could not save ${safeName}.`);
-          return safeName;
-        }),
+              handleUploadUrl: opts.uploadUrl,
+              clientPayload: JSON.stringify({ unitType: opts.unitType, unitId: opts.unitId }),
+            });
+            const res = await opts.finalize(
+              opts.buildPayload({
+                filename: safeName,
+                blobUrl: blob.url,
+                blobPathname: blob.pathname,
+                contentType,
+                byteSize: file.size,
+              }),
+            );
+            if (!res.ok) return { ok: false, label, reason: res.errors?.join(" ") || `Could not save ${safeName}.` };
+            return { ok: true, label };
+          } catch (err) {
+            return { ok: false, label, reason: uploadErrorMessage(err, opts.noun) };
+          }
+        },
       );
 
       const failures = [...problems];
       let succeeded = 0;
-      outcomes.forEach((o, i) => {
-        if (o.status === "fulfilled") {
-          succeeded += 1;
-        } else {
-          const label = valid[i]?.file.name || opts.defaultName;
-          failures.push(`${label}: ${uploadErrorMessage(o.reason, opts.noun)}`);
-        }
-      });
+      for (const o of outcomes) {
+        if (o.ok) succeeded += 1;
+        else failures.push(`${o.label}: ${o.reason}`);
+      }
 
       if (succeeded > 0) {
         setOk(true);
@@ -230,7 +265,7 @@ export function UploadFormView(props: {
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm">
           {error && <span className="text-fcr-red">{error}</span>}
-          {ok && <span className="text-green-700">{okMessage ?? "Uploaded."}</span>}
+          {ok && okMessage && <span className="text-green-700">{okMessage}</span>}
         </div>
         <button
           onClick={submit}
