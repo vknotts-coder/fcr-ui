@@ -67,6 +67,23 @@ function TabularGrid({ result, fmt }: { result: TabularResult; fmt: CellFormatte
             );
           })}
         </tbody>
+        {result.totals && result.totals.length > 0 ? (
+          // Grand-total FOOTER for a tabular report (def.grandTotals) — detail rows above are unaffected.
+          // Each total carries its source `field`, so it sits under THAT column; the first column gets the
+          // "Total" label. A count total (field "*", not a column) has no column to sit under and isn't shown
+          // here — the only tabular-footer consumer (the WIP "Finished amount" sum) totals a real column.
+          <tfoot>
+            <tr className="font-bold border-t-2 border-fcr-line">
+              {result.columns.map((c, ci) => {
+                const total = result.totals!.find((t) => t.field === c.key);
+                const cls = `${c.numeric ? tdNum : td} font-bold`;
+                if (total) return <td key={c.key} className={cls}>{renderSummaryCell(total.value, c, fmt)}</td>;
+                if (ci === 0) return <td key={c.key} className={cls}>Total</td>;
+                return <td key={c.key} className={cls} />;
+              })}
+            </tr>
+          </tfoot>
+        ) : null}
       </table>
     </div>
   );

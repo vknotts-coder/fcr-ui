@@ -32,7 +32,20 @@ function TabularGrid({ result, fmt }) {
                                 const linked = ci === 0 && href && text !== "—";
                                 return (_jsx("td", { className: c.numeric ? tdNum : td, children: linked ? (_jsx(Link, { href: href, className: "text-fcr-red hover:underline font-medium", children: text })) : (text) }, c.key));
                             }) }, i));
-                    }) })] }) }));
+                    }) }), result.totals && result.totals.length > 0 ? (
+                // Grand-total FOOTER for a tabular report (def.grandTotals) — detail rows above are unaffected.
+                // Each total carries its source `field`, so it sits under THAT column; the first column gets the
+                // "Total" label. A count total (field "*", not a column) has no column to sit under and isn't shown
+                // here — the only tabular-footer consumer (the WIP "Finished amount" sum) totals a real column.
+                _jsx("tfoot", { children: _jsx("tr", { className: "font-bold border-t-2 border-fcr-line", children: result.columns.map((c, ci) => {
+                            const total = result.totals.find((t) => t.field === c.key);
+                            const cls = `${c.numeric ? tdNum : td} font-bold`;
+                            if (total)
+                                return _jsx("td", { className: cls, children: renderSummaryCell(total.value, c, fmt) }, c.key);
+                            if (ci === 0)
+                                return _jsx("td", { className: cls, children: "Total" }, c.key);
+                            return _jsx("td", { className: cls }, c.key);
+                        }) }) })) : null] }) }));
 }
 function SummaryGrid({ result, fmt }) {
     const groupLabel = result.group.bucket
