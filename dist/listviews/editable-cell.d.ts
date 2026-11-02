@@ -1,5 +1,4 @@
 import type { ReportColumn } from "@fcr/core/reports";
-import { type CellFormatters } from "../cells.js";
 /** Per-column input descriptor the consumer supplies (from its editable field defs). */
 export type EditInput = {
     input: "text" | "textarea" | "date" | "number" | "select";
@@ -15,13 +14,12 @@ export type EditCommit = (rowId: string, column: string, value: string) => Promi
     ok: false;
     error: string;
 }>;
-export declare function EditableCell({ rowId, col, spec, initialRaw, onCommit, fmt, }: {
+export declare function EditableCell({ rowId, col, spec, initialRaw, onCommit, }: {
     rowId: string;
     col: ReportColumn;
     spec: EditInput;
     /** Raw current value for the input ("" = blank). For a date this is the YYYY-MM-DD calendar string. */
     initialRaw: string;
     onCommit: EditCommit;
-    fmt?: CellFormatters;
 }): import("react").JSX.Element;
 //# sourceMappingURL=editable-cell.d.ts.map

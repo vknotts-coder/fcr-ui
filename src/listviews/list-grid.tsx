@@ -104,7 +104,6 @@ export default function ListGrid({
                         spec={spec}
                         initialRaw={v == null ? "" : String(v)}
                         onCommit={editable!.onCommit}
-                        fmt={fmt}
                       />
                     );
                   }
