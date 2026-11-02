@@ -10,7 +10,11 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState, useTransition } from "react";
 import { renderCell, cellTd, cellTdNum, defaultFormatters } from "../cells.js";
 const inputCls = "w-full min-w-[6rem] rounded border border-fcr-red/60 bg-white px-1.5 py-0.5 text-sm text-fcr-ink focus:outline-none focus:ring-1 focus:ring-fcr-red";
-export function EditableCell({ rowId, col, spec, initialRaw, onCommit, fmt = defaultFormatters, }) {
+export function EditableCell({ rowId, col, spec, initialRaw, onCommit, }) {
+    // Display formatting uses the built-in defaults — @fcr/ui's `fmt` is a set of FUNCTIONS, which a server
+    // page cannot pass across the RSC boundary into this client component (cells.ts documents the same limit
+    // for the client report grid). Every FCR app uses the defaults, so edited cells render identically.
+    const fmt = defaultFormatters;
     const [editing, setEditing] = useState(false);
     const [raw, setRaw] = useState(initialRaw); // the committed/persisted value
     const [draft, setDraft] = useState(initialRaw); // the in-progress edit

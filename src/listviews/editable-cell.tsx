@@ -10,7 +10,7 @@
 
 import { useState, useTransition } from "react";
 import type { ReportColumn } from "@fcr/core/reports";
-import { renderCell, cellTd, cellTdNum, defaultFormatters, type CellFormatters } from "../cells.js";
+import { renderCell, cellTd, cellTdNum, defaultFormatters } from "../cells.js";
 
 /** Per-column input descriptor the consumer supplies (from its editable field defs). */
 export type EditInput = {
@@ -36,7 +36,6 @@ export function EditableCell({
   spec,
   initialRaw,
   onCommit,
-  fmt = defaultFormatters,
 }: {
   rowId: string;
   col: ReportColumn;
@@ -44,8 +43,11 @@ export function EditableCell({
   /** Raw current value for the input ("" = blank). For a date this is the YYYY-MM-DD calendar string. */
   initialRaw: string;
   onCommit: EditCommit;
-  fmt?: CellFormatters;
 }) {
+  // Display formatting uses the built-in defaults — @fcr/ui's `fmt` is a set of FUNCTIONS, which a server
+  // page cannot pass across the RSC boundary into this client component (cells.ts documents the same limit
+  // for the client report grid). Every FCR app uses the defaults, so edited cells render identically.
+  const fmt = defaultFormatters;
   const [editing, setEditing] = useState(false);
   const [raw, setRaw] = useState(initialRaw); // the committed/persisted value
   const [draft, setDraft] = useState(initialRaw); // the in-progress edit

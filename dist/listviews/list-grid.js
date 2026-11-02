@@ -37,7 +37,7 @@ export default function ListGrid({ result, sort, status, baseParams, fmt = defau
                                 const rid = spec && editable ? editable.rowId(row, href ?? null) : null;
                                 if (spec && rid) {
                                     const v = row[c.key];
-                                    return (_jsx(EditableCell, { rowId: rid, col: c, spec: spec, initialRaw: v == null ? "" : String(v), onCommit: editable.onCommit, fmt: fmt }, c.key));
+                                    return (_jsx(EditableCell, { rowId: rid, col: c, spec: spec, initialRaw: v == null ? "" : String(v), onCommit: editable.onCommit }, c.key));
                                 }
                                 return (_jsx("td", { className: c.numeric ? tdNum : td, children: linked ? (_jsx(Link, { href: href, className: "text-fcr-red hover:underline font-medium", children: text })) : (text) }, c.key));
                             }) }, i));
