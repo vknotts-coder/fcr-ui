@@ -7,6 +7,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import Link from "next/link";
 import { renderCell, cellTd as td, cellTdNum as tdNum, defaultFormatters } from "../cells.js";
 import { sortQuery } from "./sort-href.js";
+import { EditableCell } from "./editable-cell.js";
 const thBase = "px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-fcr-steel border-b border-fcr-line whitespace-nowrap";
 /** Header cell: a link that sorts by this column. Clicking the already-active column flips direction;
  *  a new column starts ascending. Carries aria-sort for assistive tech. The sort href preserves `status`
@@ -22,7 +23,7 @@ export function SortableHeader({ col, sort, status, baseParams }) {
     const caret = active ? (sort.dir === "asc" ? "▲" : "▼") : "";
     return (_jsx("th", { className: thBase, scope: "col", "aria-sort": ariaSort, style: { textAlign: col.numeric ? "right" : "left" }, children: _jsxs(Link, { href: `?${sortQuery(col.key, nextDir, status, baseParams)}`, className: `inline-flex items-center gap-1 hover:text-fcr-red ${active ? "text-fcr-red" : ""}`, scroll: false, children: [col.label, _jsx("span", { "aria-hidden": true, className: "text-[8px]", children: caret })] }) }));
 }
-export default function ListGrid({ result, sort, status, baseParams, fmt = defaultFormatters, }) {
+export default function ListGrid({ result, sort, status, baseParams, fmt = defaultFormatters, editable, }) {
     if (result.rows.length === 0) {
         return _jsx("p", { className: "py-10 text-center text-sm text-fcr-steel", children: "No records match this view." });
     }
@@ -31,6 +32,13 @@ export default function ListGrid({ result, sort, status, baseParams, fmt = defau
                         return (_jsx("tr", { className: "hover:bg-fcr-paper/60", children: result.columns.map((c, ci) => {
                                 const text = renderCell(row[c.key] ?? null, c, fmt);
                                 const linked = ci === 0 && href && text !== "—";
+                                // The first (record-link) column stays navigable; every other column may be editable.
+                                const spec = !linked ? editable?.specFor(c) ?? null : null;
+                                const rid = spec && editable ? editable.rowId(row, href ?? null) : null;
+                                if (spec && rid) {
+                                    const v = row[c.key];
+                                    return (_jsx(EditableCell, { rowId: rid, col: c, spec: spec, initialRaw: v == null ? "" : String(v), onCommit: editable.onCommit, fmt: fmt }, c.key));
+                                }
                                 return (_jsx("td", { className: c.numeric ? tdNum : td, children: linked ? (_jsx(Link, { href: href, className: "text-fcr-red hover:underline font-medium", children: text })) : (text) }, c.key));
                             }) }, i));
                     }) })] }) }));

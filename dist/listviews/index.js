@@ -2,4 +2,5 @@
 // components (URL-driven sort, no client JS); StatusSelect is a 'use client' dropdown. Kept in separate
 // files so a consumer importing the server grid doesn't pull the client module.
 export { default as ListGrid, SortableHeader } from "./list-grid.js";
+export { EditableCell } from "./editable-cell.js";
 export { default as StatusSelect } from "./status-select.js";
