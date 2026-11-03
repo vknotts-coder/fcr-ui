@@ -12,14 +12,36 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 //
 // Move up/down (= earlier/later in the row). Buttons, not drag: accessible, and robust where a drag + the
 // header's sort-click would fight. (Drag is a possible follow-on.)
-import { useState, useTransition } from "react";
-import { moveColumn, sameKeyOrder } from "./column-order.js";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { moveColumn, sameKeyOrder, reconcileColumns } from "./column-order.js";
 export function ColumnOrderControl({ columns, actions, lockedLeading = 1, }) {
     const [open, setOpen] = useState(false);
     const [order, setOrder] = useState(columns);
     const [lastCols, setLastCols] = useState(columns);
     const [error, setError] = useState(null);
     const [pending, start] = useTransition();
+    const rootRef = useRef(null);
+    // Popover dismissal: Escape and an outside pointer-down close the panel (only while open). A bare toggled
+    // div otherwise floats over the grid and traps no focus — this keeps it a well-behaved popover without a
+    // full modal/focus-trap (it is a lightweight reorder panel, not a modal dialog).
+    useEffect(() => {
+        if (!open)
+            return;
+        const onKey = (e) => {
+            if (e.key === "Escape")
+                setOpen(false);
+        };
+        const onDown = (e) => {
+            if (rootRef.current && !rootRef.current.contains(e.target))
+                setOpen(false);
+        };
+        document.addEventListener("keydown", onKey);
+        document.addEventListener("pointerdown", onDown);
+        return () => {
+            document.removeEventListener("keydown", onKey);
+            document.removeEventListener("pointerdown", onDown);
+        };
+    }, [open]);
     // Re-sync the working order when the view's columns change under us (a save revalidated, or the user
     // switched views) — but ONLY while the panel is closed and no save is in flight, so we never clobber an
     // in-progress reorder or a just-saved optimistic state (the inline-edit re-sync lesson, #88 Track A).
@@ -35,9 +57,15 @@ export function ColumnOrderControl({ columns, actions, lockedLeading = 1, }) {
     }
     function save() {
         setError(null);
+        // Reconcile against the LIVE columns before persisting: if `columns` drifted while the panel was open
+        // (a background revalidate), drop any key that's gone and append any new column — so the stored order is
+        // never stale (dead key kept / new column omitted). @fcr/core's mergeColumnOrder also reconciles on read,
+        // but keeping the store clean avoids persisting a list that no longer matches the view.
+        const reconciled = reconcileColumns(order, columns);
+        setOrder(reconciled);
         start(async () => {
             try {
-                await actions.onSave(order.map((c) => c.key));
+                await actions.onSave(reconciled.map((c) => c.key));
                 setOpen(false);
             }
             catch {
@@ -58,7 +86,7 @@ export function ColumnOrderControl({ columns, actions, lockedLeading = 1, }) {
         });
     }
     const btn = "px-2.5 py-1 rounded text-xs font-semibold border border-fcr-line text-fcr-steel hover:border-fcr-red hover:text-fcr-red disabled:opacity-50";
-    return (_jsxs("div", { className: "relative inline-block text-left", children: [_jsx("button", { type: "button", className: btn, onClick: () => setOpen((v) => !v), "aria-expanded": open, "aria-haspopup": "dialog", children: "Columns" }), open && (_jsxs("div", { role: "dialog", "aria-label": "Reorder columns", className: "absolute z-20 mt-1 w-64 rounded-lg border-2 border-fcr-line bg-white p-3 shadow-lg", children: [_jsx("p", { className: "mb-2 text-[10px] font-bold uppercase tracking-widest text-fcr-steel", children: "Reorder columns" }), _jsx("ul", { className: "max-h-72 space-y-0.5 overflow-y-auto", children: order.map((col, i) => {
+    return (_jsxs("div", { ref: rootRef, className: "relative inline-block text-left", children: [_jsx("button", { type: "button", className: btn, onClick: () => setOpen((v) => !v), "aria-expanded": open, children: "Columns" }), open && (_jsxs("div", { "aria-label": "Reorder columns", className: "absolute z-20 mt-1 w-64 rounded-lg border-2 border-fcr-line bg-white p-3 shadow-lg", children: [_jsx("p", { className: "mb-2 text-[10px] font-bold uppercase tracking-widest text-fcr-steel", children: "Reorder columns" }), _jsx("ul", { className: "max-h-72 space-y-0.5 overflow-y-auto", children: order.map((col, i) => {
                             const locked = i < lock;
                             return (_jsxs("li", { className: `flex items-center justify-between gap-2 rounded px-2 py-1 text-sm ${locked ? "text-fcr-steel/60" : "text-fcr-ink hover:bg-fcr-paper"}`, children: [_jsx("span", { className: "truncate", children: col.label }), locked ? (_jsx("span", { className: "shrink-0 text-[10px] uppercase tracking-wide text-fcr-steel/60", children: "pinned" })) : (_jsxs("span", { className: "shrink-0 flex gap-1", children: [_jsx("button", { type: "button", className: btn, disabled: pending || i <= lock, onClick: () => moveCol(i, -1), "aria-label": `Move ${col.label} earlier`, children: "\u2191" }), _jsx("button", { type: "button", className: btn, disabled: pending || i >= order.length - 1, onClick: () => moveCol(i, 1), "aria-label": `Move ${col.label} later`, children: "\u2193" })] }))] }, col.key));
                         }) }), error && _jsx("p", { className: "mt-2 text-[11px] leading-tight text-fcr-red", children: error }), _jsxs("div", { className: "mt-3 flex items-center justify-between gap-2", children: [_jsx("button", { type: "button", className: btn, disabled: pending, onClick: reset, children: "Reset to default" }), _jsx("button", { type: "button", className: "rounded bg-fcr-ink px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white disabled:opacity-50", disabled: pending || !dirty, onClick: save, children: pending ? "Saving…" : "Save order" })] })] }))] }));

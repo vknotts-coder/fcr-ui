@@ -13,8 +13,8 @@
 // Move up/down (= earlier/later in the row). Buttons, not drag: accessible, and robust where a drag + the
 // header's sort-click would fight. (Drag is a possible follow-on.)
 
-import { useState, useTransition } from "react";
-import { moveColumn, sameKeyOrder } from "./column-order.js";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { moveColumn, sameKeyOrder, reconcileColumns } from "./column-order.js";
 
 export type OrderableColumn = { key: string; label: string };
 
@@ -41,6 +41,26 @@ export function ColumnOrderControl({
   const [lastCols, setLastCols] = useState<OrderableColumn[]>(columns);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // Popover dismissal: Escape and an outside pointer-down close the panel (only while open). A bare toggled
+  // div otherwise floats over the grid and traps no focus — this keeps it a well-behaved popover without a
+  // full modal/focus-trap (it is a lightweight reorder panel, not a modal dialog).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    const onDown = (e: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [open]);
 
   // Re-sync the working order when the view's columns change under us (a save revalidated, or the user
   // switched views) — but ONLY while the panel is closed and no save is in flight, so we never clobber an
@@ -60,9 +80,15 @@ export function ColumnOrderControl({
 
   function save() {
     setError(null);
+    // Reconcile against the LIVE columns before persisting: if `columns` drifted while the panel was open
+    // (a background revalidate), drop any key that's gone and append any new column — so the stored order is
+    // never stale (dead key kept / new column omitted). @fcr/core's mergeColumnOrder also reconciles on read,
+    // but keeping the store clean avoids persisting a list that no longer matches the view.
+    const reconciled = reconcileColumns(order, columns);
+    setOrder(reconciled);
     start(async () => {
       try {
-        await actions.onSave(order.map((c) => c.key));
+        await actions.onSave(reconciled.map((c) => c.key));
         setOpen(false);
       } catch {
         setError("Could not save the column order.");
@@ -86,14 +112,13 @@ export function ColumnOrderControl({
     "px-2.5 py-1 rounded text-xs font-semibold border border-fcr-line text-fcr-steel hover:border-fcr-red hover:text-fcr-red disabled:opacity-50";
 
   return (
-    <div className="relative inline-block text-left">
-      <button type="button" className={btn} onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-haspopup="dialog">
+    <div ref={rootRef} className="relative inline-block text-left">
+      <button type="button" className={btn} onClick={() => setOpen((v) => !v)} aria-expanded={open}>
         Columns
       </button>
 
       {open && (
         <div
-          role="dialog"
           aria-label="Reorder columns"
           className="absolute z-20 mt-1 w-64 rounded-lg border-2 border-fcr-line bg-white p-3 shadow-lg"
         >

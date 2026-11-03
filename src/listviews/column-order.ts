@@ -28,3 +28,31 @@ export function moveColumn<T>(order: T[], index: number, dir: -1 | 1, lockedLead
 export function sameKeyOrder(a: { key: string }[], b: { key: string }[]): boolean {
   return a.length === b.length && a.every((c, i) => c.key === b[i]!.key);
 }
+
+/**
+ * Reconcile a (possibly stale) saved order against the LIVE columns: keep the saved items whose key still
+ * exists in `live` (in saved order), then append any live column the saved order never mentioned, in live
+ * order, at the end. Dead keys are dropped; new columns appear (at the end) rather than vanishing. Prefers
+ * the LIVE instance of each column (so a changed label/shape comes from live). Result is always exactly the
+ * `live` set, reordered — no dups, no extras, nothing invented. Mirrors @fcr/core's read-side
+ * `mergeColumnOrder`, applied client-side on SAVE so a save during column drift never persists a stale list.
+ */
+export function reconcileColumns<T extends { key: string }>(saved: T[], live: T[]): T[] {
+  const liveByKey = new Map(live.map((c) => [c.key, c]));
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const c of saved) {
+    const lc = liveByKey.get(c.key);
+    if (lc && !seen.has(c.key)) {
+      out.push(lc);
+      seen.add(c.key);
+    }
+  }
+  for (const c of live) {
+    if (!seen.has(c.key)) {
+      out.push(c);
+      seen.add(c.key);
+    }
+  }
+  return out;
+}

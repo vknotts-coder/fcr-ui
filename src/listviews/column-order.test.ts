@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { moveItem, moveColumn, sameKeyOrder } from "./column-order.js";
+import { moveItem, moveColumn, sameKeyOrder, reconcileColumns } from "./column-order.js";
 
 describe("moveItem", () => {
   it("moves an item to a new position", () => {
@@ -47,6 +47,40 @@ describe("moveColumn", () => {
 
   it("returns a copy (caller-owned) on a no-op move", () => {
     expect(moveColumn(cols, 0, 1, 1)).not.toBe(cols);
+  });
+});
+
+describe("reconcileColumns", () => {
+  const col = (key: string, label = key) => ({ key, label });
+  const live = [col("unit"), col("customer"), col("status"), col("team")];
+
+  it("keeps a valid saved order, preferring the live instance (e.g. a changed label)", () => {
+    const saved = [col("unit"), col("status", "OLD"), col("customer"), col("team")];
+    expect(reconcileColumns(saved, live)).toEqual([col("unit"), col("status"), col("customer"), col("team")]);
+  });
+
+  it("drops a saved key that no longer exists in live", () => {
+    const saved = [col("unit"), col("GONE"), col("status")];
+    // dead key dropped; remaining live (customer, team) appended in live order.
+    expect(reconcileColumns(saved, live)).toEqual([col("unit"), col("status"), col("customer"), col("team")]);
+  });
+
+  it("appends a NEW live column the saved order never mentioned, at the end", () => {
+    const saved = [col("unit"), col("status"), col("customer")]; // saved before "team" existed
+    expect(reconcileColumns(saved, live)).toEqual([col("unit"), col("status"), col("customer"), col("team")]);
+  });
+
+  it("dedupes a repeated saved key", () => {
+    const saved = [col("unit"), col("status"), col("status"), col("customer")];
+    expect(reconcileColumns(saved, live)).toEqual([col("unit"), col("status"), col("customer"), col("team")]);
+  });
+
+  it("INVARIANT: output is always exactly the live set, reordered", () => {
+    for (const saved of [[], [col("GONE")], [col("team"), col("unit")], [col("status"), col("x"), col("unit")]]) {
+      const out = reconcileColumns(saved, live);
+      expect(out.map((c) => c.key).sort()).toEqual(live.map((c) => c.key).sort());
+      expect(new Set(out.map((c) => c.key)).size).toBe(out.length);
+    }
   });
 });
 
