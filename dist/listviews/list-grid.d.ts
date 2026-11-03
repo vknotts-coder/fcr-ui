@@ -11,6 +11,12 @@ export type { EditInput, EditCommit } from "./editable-cell.js";
 export type EditableConfig = {
     specFor: (col: ReportColumn) => EditInput | null;
     onCommit: EditCommit;
+    /** Maps a row to its STABLE, UNIQUE record id — used both as the React key for the <tr> and as the commit
+     *  target for an editable cell. It MUST be (a) unique across the whole result set and (b) stable for a
+     *  given record across a re-sort/re-query: derive it from the record's own id, never from sort position or
+     *  a non-unique column. A duplicate or position-derived id makes React reuse rows by slot and silently
+     *  reintroduces the frozen-editable-cell bug this grid's stable keying fixes. Return null only for a row
+     *  that is never editable (its key then falls back to href, then index). */
     rowId: (row: Record<string, CellValue>, href: string | null) => string | null;
 };
 /** Header cell: a link that sorts by this column. Clicking the already-active column flips direction;
