@@ -119,6 +119,7 @@ export function ColumnOrderControl({
 
       {open && (
         <div
+          role="group"
           aria-label="Reorder columns"
           className="absolute z-20 mt-1 w-64 rounded-lg border-2 border-fcr-line bg-white p-3 shadow-lg"
         >
