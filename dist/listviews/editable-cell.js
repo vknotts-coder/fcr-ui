@@ -28,18 +28,18 @@ export function EditableCell({ rowId, col, spec, initialRaw, onCommit, }) {
     // React's "store information from previous renders" pattern — synchronous, no effect. Belt-and-suspenders
     // with ListGrid's stable row key, which already keeps a cell with its own row across a re-sort.
     const [lastInit, setLastInit] = useState(initialRaw);
-    if (initialRaw !== lastInit) {
-        // Track the latest server value unconditionally, but only ADOPT it when we're neither mid-edit nor
-        // mid-commit. Without the `!pending` guard, the render right after commit() (editing=false, optimistic
-        // raw=draft, the server action still pending) would satisfy this check and clobber the optimistic value
-        // with the prior server value and clear the error — a transient flicker to a stale value. The commit's
-        // own setRaw(res.value) remains the authoritative post-commit value.
+    // Re-sync to a changed server value, but ONLY when idle — not editing and not mid-commit. Gating BOTH the
+    // `lastInit` advance AND the adoption on the same condition is what makes this correct: a server change
+    // that lands while the cell is being edited/committed is HELD (lastInit stays put) and then adopted on the
+    // first idle render after the edit ends; and the optimistic value set by commit() (editing=false but the
+    // server action still `pending`) is never clobbered mid-flight. Advancing lastInit unconditionally would
+    // instead record the change without adopting it, dropping it permanently. React's "store info from a
+    // previous render" pattern — synchronous and converging (next render's inequality is false).
+    if (initialRaw !== lastInit && !editing && !pending) {
         setLastInit(initialRaw);
-        if (!editing && !pending) {
-            setRaw(initialRaw);
-            setDraft(initialRaw);
-            setError(null);
-        }
+        setRaw(initialRaw);
+        setDraft(initialRaw);
+        setError(null);
     }
     const tdCls = col.numeric ? cellTdNum : cellTd;
     const display = renderCell(raw === "" ? null : raw, col, fmt);
