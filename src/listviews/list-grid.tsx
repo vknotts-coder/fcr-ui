@@ -86,8 +86,14 @@ export default function ListGrid({
         <tbody>
           {result.rows.map((row, i) => {
             const href = result.hrefs[i];
+            // STABLE row key — never the array index. Sorting/filtering re-requests the page and returns
+            // rows in a new order; an index key makes React reuse the <tr> (and its stateful EditableCell
+            // children) at each POSITION, so an editable cell keeps the prior row's value and the column
+            // appears frozen while read-only columns move (fcr-trailers #88, go-live revert 2026-11-03).
+            // Keying by the row's own identity makes React MOVE the row + its cells to the new position.
+            const rowKey = editable?.rowId(row, href ?? null) ?? href ?? `row-${i}`;
             return (
-              <tr key={i} className="hover:bg-fcr-paper/60">
+              <tr key={rowKey} className="hover:bg-fcr-paper/60">
                 {result.columns.map((c, ci) => {
                   const text = renderCell(row[c.key] ?? null, c, fmt);
                   const linked = ci === 0 && href && text !== "—";

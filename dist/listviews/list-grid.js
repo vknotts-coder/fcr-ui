@@ -29,6 +29,12 @@ export default function ListGrid({ result, sort, status, baseParams, fmt = defau
     }
     return (_jsx("div", { className: "overflow-x-auto", children: _jsxs("table", { className: "min-w-full border-collapse", children: [_jsx("thead", { children: _jsx("tr", { children: result.columns.map((c) => (_jsx(SortableHeader, { col: c, sort: sort, status: status, baseParams: baseParams }, c.key))) }) }), _jsx("tbody", { children: result.rows.map((row, i) => {
                         const href = result.hrefs[i];
+                        // STABLE row key — never the array index. Sorting/filtering re-requests the page and returns
+                        // rows in a new order; an index key makes React reuse the <tr> (and its stateful EditableCell
+                        // children) at each POSITION, so an editable cell keeps the prior row's value and the column
+                        // appears frozen while read-only columns move (fcr-trailers #88, go-live revert 2026-11-03).
+                        // Keying by the row's own identity makes React MOVE the row + its cells to the new position.
+                        const rowKey = editable?.rowId(row, href ?? null) ?? href ?? `row-${i}`;
                         return (_jsx("tr", { className: "hover:bg-fcr-paper/60", children: result.columns.map((c, ci) => {
                                 const text = renderCell(row[c.key] ?? null, c, fmt);
                                 const linked = ci === 0 && href && text !== "—";
@@ -40,6 +46,6 @@ export default function ListGrid({ result, sort, status, baseParams, fmt = defau
                                     return (_jsx(EditableCell, { rowId: rid, col: c, spec: spec, initialRaw: v == null ? "" : String(v), onCommit: editable.onCommit }, c.key));
                                 }
                                 return (_jsx("td", { className: c.numeric ? tdNum : td, children: linked ? (_jsx(Link, { href: href, className: "text-fcr-red hover:underline font-medium", children: text })) : (text) }, c.key));
-                            }) }, i));
+                            }) }, rowKey));
                     }) })] }) }));
 }
