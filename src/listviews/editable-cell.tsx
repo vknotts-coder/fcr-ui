@@ -62,11 +62,18 @@ export function EditableCell({
   // React's "store information from previous renders" pattern — synchronous, no effect. Belt-and-suspenders
   // with ListGrid's stable row key, which already keeps a cell with its own row across a re-sort.
   const [lastInit, setLastInit] = useState(initialRaw);
-  if (initialRaw !== lastInit && !editing) {
+  if (initialRaw !== lastInit) {
+    // Track the latest server value unconditionally, but only ADOPT it when we're neither mid-edit nor
+    // mid-commit. Without the `!pending` guard, the render right after commit() (editing=false, optimistic
+    // raw=draft, the server action still pending) would satisfy this check and clobber the optimistic value
+    // with the prior server value and clear the error — a transient flicker to a stale value. The commit's
+    // own setRaw(res.value) remains the authoritative post-commit value.
     setLastInit(initialRaw);
-    setRaw(initialRaw);
-    setDraft(initialRaw);
-    setError(null);
+    if (!editing && !pending) {
+      setRaw(initialRaw);
+      setDraft(initialRaw);
+      setError(null);
+    }
   }
 
   const tdCls = col.numeric ? cellTdNum : cellTd;

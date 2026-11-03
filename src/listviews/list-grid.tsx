@@ -21,6 +21,12 @@ export type { EditInput, EditCommit } from "./editable-cell.js";
 export type EditableConfig = {
   specFor: (col: ReportColumn) => EditInput | null;
   onCommit: EditCommit;
+  /** Maps a row to its STABLE, UNIQUE record id — used both as the React key for the <tr> and as the commit
+   *  target for an editable cell. It MUST be (a) unique across the whole result set and (b) stable for a
+   *  given record across a re-sort/re-query: derive it from the record's own id, never from sort position or
+   *  a non-unique column. A duplicate or position-derived id makes React reuse rows by slot and silently
+   *  reintroduces the frozen-editable-cell bug this grid's stable keying fixes. Return null only for a row
+   *  that is never editable (its key then falls back to href, then index). */
   rowId: (row: Record<string, CellValue>, href: string | null) => string | null;
 };
 
@@ -73,6 +79,10 @@ export default function ListGrid({
   if (result.rows.length === 0) {
     return <p className="py-10 text-center text-sm text-fcr-steel">No records match this view.</p>;
   }
+  // Dev-only guard: a duplicate row key makes React reuse rows by slot and silently resurrects the
+  // frozen-editable-cell bug. Collect keys as we render and warn (never in prod) if editable.rowId
+  // isn't unique across the result set.
+  const seenRowKeys = process.env.NODE_ENV !== "production" && editable ? new Set<string>() : null;
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full border-collapse">
@@ -86,12 +96,25 @@ export default function ListGrid({
         <tbody>
           {result.rows.map((row, i) => {
             const href = result.hrefs[i];
-            // STABLE row key — never the array index. Sorting/filtering re-requests the page and returns
-            // rows in a new order; an index key makes React reuse the <tr> (and its stateful EditableCell
-            // children) at each POSITION, so an editable cell keeps the prior row's value and the column
-            // appears frozen while read-only columns move (fcr-trailers #88, go-live revert 2026-11-03).
-            // Keying by the row's own identity makes React MOVE the row + its cells to the new position.
-            const rowKey = editable?.rowId(row, href ?? null) ?? href ?? `row-${i}`;
+            // STABLE row id — computed ONCE per row and used for BOTH the <tr> key and the editable cell's
+            // commit target, so React's row identity and the cell's write target can never diverge.
+            // Never the array index: sorting/filtering re-requests the page and returns rows in a new order;
+            // an index key makes React reuse the <tr> (and its stateful EditableCell children) at each
+            // POSITION, so an editable cell keeps the prior row's value and the column appears frozen while
+            // read-only columns move (fcr-trailers #88, go-live revert 2026-11-03). A stable id makes React
+            // MOVE the row + its cells to the new position. Falls back to href, then index, for a row with
+            // no id (which is never editable — see EditableConfig.rowId).
+            const rid = editable?.rowId(row, href ?? null) ?? null;
+            const rowKey = rid ?? href ?? `row-${i}`;
+            if (seenRowKeys) {
+              if (seenRowKeys.has(rowKey)) {
+                // eslint-disable-next-line no-console
+                console.warn(
+                  `[ListGrid] duplicate row key "${rowKey}" — editable cells can freeze on sort; editable.rowId must return a unique, stable id per row.`,
+                );
+              }
+              seenRowKeys.add(rowKey);
+            }
             return (
               <tr key={rowKey} className="hover:bg-fcr-paper/60">
                 {result.columns.map((c, ci) => {
@@ -99,7 +122,7 @@ export default function ListGrid({
                   const linked = ci === 0 && href && text !== "—";
                   // The first (record-link) column stays navigable; every other column may be editable.
                   const spec = !linked ? editable?.specFor(c) ?? null : null;
-                  const rid = spec && editable ? editable.rowId(row, href ?? null) : null;
+                  // Reuse the row-level `rid` (one rowId() call per row) as the cell's commit target.
                   if (spec && rid) {
                     const v = row[c.key];
                     return (
