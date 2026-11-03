@@ -7,7 +7,7 @@
 import Link from "next/link";
 import type { CellValue, ReportColumn, TabularResult } from "@fcr/core/reports";
 import type { ReportSort } from "@fcr/core/reports/definition";
-import { renderCell, cellTd as td, cellTdNum as tdNum, defaultFormatters, type CellFormatters } from "../cells.js";
+import { renderCell, cellTd as td, cellTdNum as tdNum, defaultFormatters, type CellFormatters, type DateStyle } from "../cells.js";
 import { sortQuery } from "./sort-href.js";
 import { EditableCell, type EditInput, type EditCommit } from "./editable-cell.js";
 
@@ -64,6 +64,7 @@ export default function ListGrid({
   status,
   baseParams,
   fmt = defaultFormatters,
+  dateFormat = "iso",
   editable,
 }: {
   result: TabularResult;
@@ -73,6 +74,9 @@ export default function ListGrid({
    *  search term). See SortableHeader. Omit when all page state lives in the route path. */
   baseParams?: Record<string, string | undefined>;
   fmt?: CellFormatters;
+  /** How date cells render: `"iso"` (YYYY-MM-DD, default) or `"us"` (MM/DD/YY). Serializable, so a server
+   *  page can set it (unlike `fmt`). Also threaded into editable date cells so an edited date reads the same. */
+  dateFormat?: DateStyle;
   /** Opt-in inline editing. Omit for the default read-only grid. See EditableConfig. */
   editable?: EditableConfig;
 }) {
@@ -118,7 +122,7 @@ export default function ListGrid({
             return (
               <tr key={rowKey} className="hover:bg-fcr-paper/60">
                 {result.columns.map((c, ci) => {
-                  const text = renderCell(row[c.key] ?? null, c, fmt);
+                  const text = renderCell(row[c.key] ?? null, c, fmt, dateFormat);
                   const linked = ci === 0 && href && text !== "—";
                   // The first (record-link) column stays navigable; every other column may be editable.
                   const spec = !linked ? editable?.specFor(c) ?? null : null;
@@ -133,6 +137,7 @@ export default function ListGrid({
                         spec={spec}
                         initialRaw={v == null ? "" : String(v)}
                         onCommit={editable!.onCommit}
+                        dateFormat={dateFormat}
                       />
                     );
                   }

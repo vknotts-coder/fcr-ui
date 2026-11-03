@@ -23,7 +23,7 @@ import { OPERATORS_BY_TYPE, VALUELESS_OPERATORS } from "@fcr/core/reports/defini
 import type { RunOutcome } from "@fcr/core/reports";
 import { csvFilename } from "@fcr/core/reports/csv";
 import ReportResults from "./report-results.js";
-import { defaultFormatters, type CellFormatters } from "../cells.js";
+import { defaultFormatters, type CellFormatters, type DateStyle } from "../cells.js";
 
 // ── Injected app boundary ─────────────────────────────────────────────────────────────────────────
 // The builder does not import app server actions (a shared package can't own Next server actions). The
@@ -177,6 +177,7 @@ export default function ReportBuilder({
   savedReportId,
   actions,
   fmt = defaultFormatters,
+  dateFormat = "iso",
   exportPath = "/reports/export",
 }: {
   objects: ClientReportObject[];
@@ -184,6 +185,9 @@ export default function ReportBuilder({
   savedReportId?: string | null;
   actions: ReportBuilderActions;
   fmt?: CellFormatters;
+  /** Date-cell display style for the live preview (`"iso"` default / `"us"` MM/DD/YY). Forwarded to
+   *  ReportResults; the CSV export is unaffected (it re-runs server-side and always emits ISO dates). */
+  dateFormat?: DateStyle;
   exportPath?: string;
 }) {
   const [objectKey, setObjectKey] = useState(initial?.objectKey ?? objects[0]?.key ?? "");
@@ -535,7 +539,7 @@ export default function ReportBuilder({
       {/* ── Right: results ── */}
       <div>
         {outcome ? (
-          <ReportResults outcome={outcome} fmt={fmt} />
+          <ReportResults outcome={outcome} fmt={fmt} dateFormat={dateFormat} />
         ) : (
           <div className="rounded-lg border-2 border-dashed border-fcr-line p-8 text-center text-sm text-fcr-steel">
             Configure the report and press <span className="font-semibold">Run report</span> to preview results.

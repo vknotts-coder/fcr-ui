@@ -10,7 +10,7 @@
 import Link from "next/link";
 import type { ReportColumn, RunOutcome, SummaryResult, TabularResult, SummaryCell } from "@fcr/core/reports";
 import { REPORT_ROW_CAP } from "@fcr/core/reports/definition";
-import { renderCell, cellTd, cellTdNum, defaultFormatters, type CellFormatters } from "../cells.js";
+import { renderCell, cellTd, cellTdNum, defaultFormatters, type CellFormatters, type DateStyle } from "../cells.js";
 
 // ── Cell formatting ────────────────────────────────────────────────────────────────────────────────
 
@@ -29,7 +29,7 @@ const thNum = "text-right px-3 py-2 text-[10px] font-bold uppercase tracking-wid
 const td = cellTd;
 const tdNum = cellTdNum;
 
-function TabularGrid({ result, fmt }: { result: TabularResult; fmt: CellFormatters }) {
+function TabularGrid({ result, fmt, dateFormat }: { result: TabularResult; fmt: CellFormatters; dateFormat: DateStyle }) {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full border-collapse">
@@ -48,7 +48,7 @@ function TabularGrid({ result, fmt }: { result: TabularResult; fmt: CellFormatte
             return (
               <tr key={i} className="hover:bg-fcr-paper/60">
                 {result.columns.map((c, ci) => {
-                  const text = renderCell(row[c.key] ?? null, c, fmt);
+                  const text = renderCell(row[c.key] ?? null, c, fmt, dateFormat);
                   // First column links to the record when an href exists and the cell isn't blank.
                   const linked = ci === 0 && href && text !== "—";
                   return (
@@ -84,7 +84,7 @@ function TabularGrid({ result, fmt }: { result: TabularResult; fmt: CellFormatte
                 {result.columns.map((c, ci) => {
                   const total = byField.get(c.key);
                   const cls = `${c.numeric ? tdNum : td} font-bold`;
-                  if (total) return <td key={c.key} className={cls}>{renderCell(total.value, c, fmt)}</td>;
+                  if (total) return <td key={c.key} className={cls}>{renderCell(total.value, c, fmt, dateFormat)}</td>;
                   if (ci === 0) return <td key={c.key} className={cls}>Total</td>;
                   return <td key={c.key} className={cls} />;
                 })}
@@ -168,7 +168,7 @@ function CountLine({ result }: { result: TabularResult | SummaryResult }) {
 
 // ── Public component ───────────────────────────────────────────────────────────────────────────────
 
-export default function ReportResults({ outcome, fmt = defaultFormatters }: { outcome: RunOutcome; fmt?: CellFormatters }) {
+export default function ReportResults({ outcome, fmt = defaultFormatters, dateFormat = "iso" }: { outcome: RunOutcome; fmt?: CellFormatters; dateFormat?: DateStyle }) {
   if (!outcome.ok) {
     return (
       <div className="rounded-lg border-2 border-fcr-red bg-fcr-red/5 p-4">
@@ -192,7 +192,7 @@ export default function ReportResults({ outcome, fmt = defaultFormatters }: { ou
       {empty ? (
         <p className="py-8 text-center text-sm text-fcr-steel">No rows match this report.</p>
       ) : result.mode === "tabular" ? (
-        <TabularGrid result={result} fmt={fmt} />
+        <TabularGrid result={result} fmt={fmt} dateFormat={dateFormat} />
       ) : (
         <SummaryGrid result={result} fmt={fmt} />
       )}

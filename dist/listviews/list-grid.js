@@ -23,7 +23,7 @@ export function SortableHeader({ col, sort, status, baseParams }) {
     const caret = active ? (sort.dir === "asc" ? "▲" : "▼") : "";
     return (_jsx("th", { className: thBase, scope: "col", "aria-sort": ariaSort, style: { textAlign: col.numeric ? "right" : "left" }, children: _jsxs(Link, { href: `?${sortQuery(col.key, nextDir, status, baseParams)}`, className: `inline-flex items-center gap-1 hover:text-fcr-red ${active ? "text-fcr-red" : ""}`, scroll: false, children: [col.label, _jsx("span", { "aria-hidden": true, className: "text-[8px]", children: caret })] }) }));
 }
-export default function ListGrid({ result, sort, status, baseParams, fmt = defaultFormatters, editable, }) {
+export default function ListGrid({ result, sort, status, baseParams, fmt = defaultFormatters, dateFormat = "iso", editable, }) {
     if (result.rows.length === 0) {
         return _jsx("p", { className: "py-10 text-center text-sm text-fcr-steel", children: "No records match this view." });
     }
@@ -51,14 +51,14 @@ export default function ListGrid({ result, sort, status, baseParams, fmt = defau
                             seenRowKeys.add(rowKey);
                         }
                         return (_jsx("tr", { className: "hover:bg-fcr-paper/60", children: result.columns.map((c, ci) => {
-                                const text = renderCell(row[c.key] ?? null, c, fmt);
+                                const text = renderCell(row[c.key] ?? null, c, fmt, dateFormat);
                                 const linked = ci === 0 && href && text !== "—";
                                 // The first (record-link) column stays navigable; every other column may be editable.
                                 const spec = !linked ? editable?.specFor(c) ?? null : null;
                                 // Reuse the row-level `rid` (one rowId() call per row) as the cell's commit target.
                                 if (spec && rid) {
                                     const v = row[c.key];
-                                    return (_jsx(EditableCell, { rowId: rid, col: c, spec: spec, initialRaw: v == null ? "" : String(v), onCommit: editable.onCommit }, c.key));
+                                    return (_jsx(EditableCell, { rowId: rid, col: c, spec: spec, initialRaw: v == null ? "" : String(v), onCommit: editable.onCommit, dateFormat: dateFormat }, c.key));
                                 }
                                 return (_jsx("td", { className: c.numeric ? tdNum : td, children: linked ? (_jsx(Link, { href: href, className: "text-fcr-red hover:underline font-medium", children: text })) : (text) }, c.key));
                             }) }, rowKey));

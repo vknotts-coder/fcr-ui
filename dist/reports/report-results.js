@@ -23,11 +23,11 @@ const thNum = "text-right px-3 py-2 text-[10px] font-bold uppercase tracking-wid
 // Body-cell classes shared with the list-view grid (../cells) so the two can't drift.
 const td = cellTd;
 const tdNum = cellTdNum;
-function TabularGrid({ result, fmt }) {
+function TabularGrid({ result, fmt, dateFormat }) {
     return (_jsx("div", { className: "overflow-x-auto", children: _jsxs("table", { className: "min-w-full border-collapse", children: [_jsx("thead", { children: _jsx("tr", { children: result.columns.map((c) => (_jsx("th", { className: c.numeric ? thNum : th, scope: "col", children: c.label }, c.key))) }) }), _jsx("tbody", { children: result.rows.map((row, i) => {
                         const href = result.hrefs[i];
                         return (_jsx("tr", { className: "hover:bg-fcr-paper/60", children: result.columns.map((c, ci) => {
-                                const text = renderCell(row[c.key] ?? null, c, fmt);
+                                const text = renderCell(row[c.key] ?? null, c, fmt, dateFormat);
                                 // First column links to the record when an href exists and the cell isn't blank.
                                 const linked = ci === 0 && href && text !== "—";
                                 return (_jsx("td", { className: c.numeric ? tdNum : td, children: linked ? (_jsx(Link, { href: href, className: "text-fcr-red hover:underline font-medium", children: text })) : (text) }, c.key));
@@ -48,7 +48,7 @@ function TabularGrid({ result, fmt }) {
                                 const total = byField.get(c.key);
                                 const cls = `${c.numeric ? tdNum : td} font-bold`;
                                 if (total)
-                                    return _jsx("td", { className: cls, children: renderCell(total.value, c, fmt) }, c.key);
+                                    return _jsx("td", { className: cls, children: renderCell(total.value, c, fmt, dateFormat) }, c.key);
                                 if (ci === 0)
                                     return _jsx("td", { className: cls, children: "Total" }, c.key);
                                 return _jsx("td", { className: cls }, c.key);
@@ -77,11 +77,11 @@ function CountLine({ result }) {
     return _jsx("p", { className: "mb-2 text-xs uppercase tracking-widest font-bold text-fcr-steel", children: text });
 }
 // ── Public component ───────────────────────────────────────────────────────────────────────────────
-export default function ReportResults({ outcome, fmt = defaultFormatters }) {
+export default function ReportResults({ outcome, fmt = defaultFormatters, dateFormat = "iso" }) {
     if (!outcome.ok) {
         return (_jsxs("div", { className: "rounded-lg border-2 border-fcr-red bg-fcr-red/5 p-4", children: [_jsx("p", { className: "text-sm font-bold uppercase tracking-widest text-fcr-red mb-1", children: "Report error" }), _jsx("ul", { className: "list-disc pl-5 text-sm text-fcr-ink", children: outcome.errors.map((e, i) => (_jsx("li", { children: e }, i))) })] }));
     }
     const { result } = outcome;
     const empty = result.rows.length === 0;
-    return (_jsxs("div", { className: "rounded-lg border-2 border-fcr-line bg-white p-4", children: [_jsx(TruncationBanner, { result: result }), _jsx(CountLine, { result: result }), empty ? (_jsx("p", { className: "py-8 text-center text-sm text-fcr-steel", children: "No rows match this report." })) : result.mode === "tabular" ? (_jsx(TabularGrid, { result: result, fmt: fmt })) : (_jsx(SummaryGrid, { result: result, fmt: fmt }))] }));
+    return (_jsxs("div", { className: "rounded-lg border-2 border-fcr-line bg-white p-4", children: [_jsx(TruncationBanner, { result: result }), _jsx(CountLine, { result: result }), empty ? (_jsx("p", { className: "py-8 text-center text-sm text-fcr-steel", children: "No rows match this report." })) : result.mode === "tabular" ? (_jsx(TabularGrid, { result: result, fmt: fmt, dateFormat: dateFormat })) : (_jsx(SummaryGrid, { result: result, fmt: fmt }))] }));
 }

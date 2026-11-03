@@ -1,6 +1,6 @@
 import type { CellValue, ReportColumn, TabularResult } from "@fcr/core/reports";
 import type { ReportSort } from "@fcr/core/reports/definition";
-import { type CellFormatters } from "../cells.js";
+import { type CellFormatters, type DateStyle } from "../cells.js";
 import { type EditInput, type EditCommit } from "./editable-cell.js";
 export type { EditInput, EditCommit } from "./editable-cell.js";
 /** Opt-in inline editing for a list grid. When provided, a cell whose column `specFor` returns a non-null
@@ -32,7 +32,7 @@ export declare function SortableHeader({ col, sort, status, baseParams }: {
     status?: string | null;
     baseParams?: Record<string, string | undefined>;
 }): import("react").JSX.Element;
-export default function ListGrid({ result, sort, status, baseParams, fmt, editable, }: {
+export default function ListGrid({ result, sort, status, baseParams, fmt, dateFormat, editable, }: {
     result: TabularResult;
     sort: ReportSort;
     status?: string | null;
@@ -40,6 +40,9 @@ export default function ListGrid({ result, sort, status, baseParams, fmt, editab
      *  search term). See SortableHeader. Omit when all page state lives in the route path. */
     baseParams?: Record<string, string | undefined>;
     fmt?: CellFormatters;
+    /** How date cells render: `"iso"` (YYYY-MM-DD, default) or `"us"` (MM/DD/YY). Serializable, so a server
+     *  page can set it (unlike `fmt`). Also threaded into editable date cells so an edited date reads the same. */
+    dateFormat?: DateStyle;
     /** Opt-in inline editing. Omit for the default read-only grid. See EditableConfig. */
     editable?: EditableConfig;
 }): import("react").JSX.Element;

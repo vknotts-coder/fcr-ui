@@ -10,7 +10,7 @@
 
 import { useState, useTransition } from "react";
 import type { ReportColumn } from "@fcr/core/reports";
-import { renderCell, cellTd, cellTdNum, defaultFormatters } from "../cells.js";
+import { renderCell, cellTd, cellTdNum, defaultFormatters, type DateStyle } from "../cells.js";
 
 /** Per-column input descriptor the consumer supplies (from its editable field defs). */
 export type EditInput = {
@@ -36,6 +36,7 @@ export function EditableCell({
   spec,
   initialRaw,
   onCommit,
+  dateFormat = "iso",
 }: {
   rowId: string;
   col: ReportColumn;
@@ -43,6 +44,9 @@ export function EditableCell({
   /** Raw current value for the input ("" = blank). For a date this is the YYYY-MM-DD calendar string. */
   initialRaw: string;
   onCommit: EditCommit;
+  /** Display style for a date cell when NOT editing (`"iso"` default / `"us"` MM/DD/YY). The editing input
+   *  is always the native date picker on the raw YYYY-MM-DD value — only the resting display reshapes. */
+  dateFormat?: DateStyle;
 }) {
   // Display formatting uses the built-in defaults — @fcr/ui's `fmt` is a set of FUNCTIONS, which a server
   // page cannot pass across the RSC boundary into this client component (cells.ts documents the same limit
@@ -77,7 +81,7 @@ export function EditableCell({
   }
 
   const tdCls = col.numeric ? cellTdNum : cellTd;
-  const display = renderCell(raw === "" ? null : raw, col, fmt);
+  const display = renderCell(raw === "" ? null : raw, col, fmt, dateFormat);
 
   function begin() {
     setDraft(raw);
