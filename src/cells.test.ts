@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from "vitest";
 import type { ReportColumn } from "@fcr/core/reports";
-import { renderCell, defaultFormatters, type CellFormatters } from "./cells.js";
+import { renderCell, defaultFormatters, formatDateCell, dateInputValue, type CellFormatters } from "./cells.js";
 
 // Sentinel formatters: prove renderCell routes money→money and number→number (not swapped, not a default).
 const fmt: CellFormatters = {
@@ -33,13 +33,58 @@ describe("renderCell — injected formatters + fixed cases", () => {
     expect(renderCell(false, col("boolean"), fmt)).toBe("No");
   });
 
-  it("date → the YYYY-MM-DD head (no formatter)", () => {
+  it("date → the YYYY-MM-DD head by default (no formatter, dateStyle omitted = iso)", () => {
     expect(renderCell("2026-09-11T13:45:00Z", col("date"), fmt)).toBe("2026-09-11");
+  });
+
+  it("date with dateStyle 'us' → MM/DD/YY", () => {
+    expect(renderCell("2026-09-11", col("date"), fmt, "us")).toBe("09/11/26");
+    expect(renderCell("2026-09-11T13:45:00Z", col("date"), fmt, "us")).toBe("09/11/26");
+  });
+
+  it("date 'us' is only for date columns — other types ignore dateStyle", () => {
+    expect(renderCell(1500, col("money"), fmt, "us")).toBe("MONEY(1500)");
+    expect(renderCell("In Repair", col("enum"), fmt, "us")).toBe("In Repair");
   });
 
   it("string/enum → passthrough", () => {
     expect(renderCell("In Repair", col("enum"), fmt)).toBe("In Repair");
     expect(renderCell("hello", col("string"), fmt)).toBe("hello");
+  });
+});
+
+describe("formatDateCell — iso (default) vs us", () => {
+  it("iso is byte-identical to the historical slice(0,10) for strings", () => {
+    expect(formatDateCell("2026-01-05")).toBe("2026-01-05");
+    expect(formatDateCell("2026-01-05T23:59:00Z")).toBe("2026-01-05");
+  });
+  it("us reshapes YYYY-MM-DD head to MM/DD/YY (pure string, no Date)", () => {
+    expect(formatDateCell("2026-01-05", "us")).toBe("01/05/26");
+    expect(formatDateCell("2026-12-31T00:00:00", "us")).toBe("12/31/26");
+  });
+  it("hydrated JS Date reads UTC parts (no evening-Central day rollback)", () => {
+    // neon hands back a local-midnight Date for a date column; UTC getters keep the calendar day.
+    const d = new Date(Date.UTC(2026, 0, 5)); // 2026-01-05
+    expect(formatDateCell(d, "us")).toBe("01/05/26");
+    expect(formatDateCell(d)).toBe("2026-01-05");
+  });
+  it("null/blank → em dash; unparseable → unchanged", () => {
+    expect(formatDateCell(null, "us")).toBe("—");
+    expect(formatDateCell("", "us")).toBe("—");
+    expect(formatDateCell("not-a-date", "us")).toBe("not-a-date");
+  });
+});
+
+describe("dateInputValue — the editable date cell's <input type=date> value", () => {
+  it("a neon-hydrated Date normalizes to YYYY-MM-DD (NOT String(Date), which the date input rejects)", () => {
+    // The HIGH finding: the editable path did String(v); for a Date that is "Fri Sep 11 2026 …" → blank input.
+    expect(dateInputValue(new Date(Date.UTC(2026, 8, 11)))).toBe("2026-09-11");
+    expect(String(new Date(Date.UTC(2026, 8, 11)))).not.toBe("2026-09-11"); // the bug this guards
+  });
+  it("a YYYY-MM-DD string passes through; null/invalid → empty string", () => {
+    expect(dateInputValue("2026-09-11")).toBe("2026-09-11");
+    expect(dateInputValue(null)).toBe("");
+    expect(dateInputValue("" as unknown as null)).toBe("");
   });
 });
 

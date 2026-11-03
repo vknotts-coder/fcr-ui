@@ -10,7 +10,15 @@
 import Link from "next/link";
 import type { ReportColumn, RunOutcome, SummaryResult, TabularResult, SummaryCell } from "@fcr/core/reports";
 import { REPORT_ROW_CAP } from "@fcr/core/reports/definition";
-import { renderCell, cellTd, cellTdNum, defaultFormatters, type CellFormatters } from "../cells.js";
+import { renderCell, formatDateCell, cellTd, cellTdNum, defaultFormatters, type CellFormatters, type DateStyle } from "../cells.js";
+
+/** A grouped report's group label is a plain string — a status/enum, or a date bucket ("2026-03-09" /
+ *  "2026-03" / "2026"). Reshape ONLY a full YYYY-MM-DD day bucket to the requested style; month/year buckets
+ *  and non-date labels pass through untouched (running them through formatDateCell would slice a long label
+ *  to 10 chars). So `dateFormat="us"` reaches grouped-by-day labels too, not just tabular detail cells. */
+function fmtGroupLabel(v: string, dateStyle: DateStyle): string {
+  return dateStyle === "us" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? formatDateCell(v, "us") : v;
+}
 
 // ── Cell formatting ────────────────────────────────────────────────────────────────────────────────
 
@@ -29,7 +37,7 @@ const thNum = "text-right px-3 py-2 text-[10px] font-bold uppercase tracking-wid
 const td = cellTd;
 const tdNum = cellTdNum;
 
-function TabularGrid({ result, fmt }: { result: TabularResult; fmt: CellFormatters }) {
+function TabularGrid({ result, fmt, dateFormat }: { result: TabularResult; fmt: CellFormatters; dateFormat: DateStyle }) {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full border-collapse">
@@ -48,7 +56,7 @@ function TabularGrid({ result, fmt }: { result: TabularResult; fmt: CellFormatte
             return (
               <tr key={i} className="hover:bg-fcr-paper/60">
                 {result.columns.map((c, ci) => {
-                  const text = renderCell(row[c.key] ?? null, c, fmt);
+                  const text = renderCell(row[c.key] ?? null, c, fmt, dateFormat);
                   // First column links to the record when an href exists and the cell isn't blank.
                   const linked = ci === 0 && href && text !== "—";
                   return (
@@ -84,7 +92,7 @@ function TabularGrid({ result, fmt }: { result: TabularResult; fmt: CellFormatte
                 {result.columns.map((c, ci) => {
                   const total = byField.get(c.key);
                   const cls = `${c.numeric ? tdNum : td} font-bold`;
-                  if (total) return <td key={c.key} className={cls}>{renderCell(total.value, c, fmt)}</td>;
+                  if (total) return <td key={c.key} className={cls}>{renderCell(total.value, c, fmt, dateFormat)}</td>;
                   if (ci === 0) return <td key={c.key} className={cls}>Total</td>;
                   return <td key={c.key} className={cls} />;
                 })}
@@ -97,7 +105,7 @@ function TabularGrid({ result, fmt }: { result: TabularResult; fmt: CellFormatte
   );
 }
 
-function SummaryGrid({ result, fmt }: { result: SummaryResult; fmt: CellFormatters }) {
+function SummaryGrid({ result, fmt, dateFormat }: { result: SummaryResult; fmt: CellFormatters; dateFormat: DateStyle }) {
   const groupLabel = result.group.bucket
     ? `${result.group.label} (${result.group.bucket})`
     : result.group.label || "Group";
@@ -119,7 +127,7 @@ function SummaryGrid({ result, fmt }: { result: SummaryResult; fmt: CellFormatte
         <tbody>
           {result.rows.map((r, i) => (
             <tr key={i} className="hover:bg-fcr-paper/60">
-              <td className={td}>{r.groupValue}</td>
+              <td className={td}>{fmtGroupLabel(r.groupValue, dateFormat)}</td>
               {result.columns.map((c) => (
                 <td key={c.key} className={tdNum}>
                   {renderSummaryCell(r.values[c.key] ?? null, c, fmt)}
@@ -168,7 +176,7 @@ function CountLine({ result }: { result: TabularResult | SummaryResult }) {
 
 // ── Public component ───────────────────────────────────────────────────────────────────────────────
 
-export default function ReportResults({ outcome, fmt = defaultFormatters }: { outcome: RunOutcome; fmt?: CellFormatters }) {
+export default function ReportResults({ outcome, fmt = defaultFormatters, dateFormat = "iso" }: { outcome: RunOutcome; fmt?: CellFormatters; dateFormat?: DateStyle }) {
   if (!outcome.ok) {
     return (
       <div className="rounded-lg border-2 border-fcr-red bg-fcr-red/5 p-4">
@@ -192,9 +200,9 @@ export default function ReportResults({ outcome, fmt = defaultFormatters }: { ou
       {empty ? (
         <p className="py-8 text-center text-sm text-fcr-steel">No rows match this report.</p>
       ) : result.mode === "tabular" ? (
-        <TabularGrid result={result} fmt={fmt} />
+        <TabularGrid result={result} fmt={fmt} dateFormat={dateFormat} />
       ) : (
-        <SummaryGrid result={result} fmt={fmt} />
+        <SummaryGrid result={result} fmt={fmt} dateFormat={dateFormat} />
       )}
     </div>
   );

@@ -8,7 +8,14 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 // null and nothing links).
 import Link from "next/link";
 import { REPORT_ROW_CAP } from "@fcr/core/reports/definition";
-import { renderCell, cellTd, cellTdNum, defaultFormatters } from "../cells.js";
+import { renderCell, formatDateCell, cellTd, cellTdNum, defaultFormatters } from "../cells.js";
+/** A grouped report's group label is a plain string — a status/enum, or a date bucket ("2026-03-09" /
+ *  "2026-03" / "2026"). Reshape ONLY a full YYYY-MM-DD day bucket to the requested style; month/year buckets
+ *  and non-date labels pass through untouched (running them through formatDateCell would slice a long label
+ *  to 10 chars). So `dateFormat="us"` reaches grouped-by-day labels too, not just tabular detail cells. */
+function fmtGroupLabel(v, dateStyle) {
+    return dateStyle === "us" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? formatDateCell(v, "us") : v;
+}
 // ── Cell formatting ────────────────────────────────────────────────────────────────────────────────
 function renderSummaryCell(value, col, fmt) {
     if (value === null || value === undefined)
@@ -23,11 +30,11 @@ const thNum = "text-right px-3 py-2 text-[10px] font-bold uppercase tracking-wid
 // Body-cell classes shared with the list-view grid (../cells) so the two can't drift.
 const td = cellTd;
 const tdNum = cellTdNum;
-function TabularGrid({ result, fmt }) {
+function TabularGrid({ result, fmt, dateFormat }) {
     return (_jsx("div", { className: "overflow-x-auto", children: _jsxs("table", { className: "min-w-full border-collapse", children: [_jsx("thead", { children: _jsx("tr", { children: result.columns.map((c) => (_jsx("th", { className: c.numeric ? thNum : th, scope: "col", children: c.label }, c.key))) }) }), _jsx("tbody", { children: result.rows.map((row, i) => {
                         const href = result.hrefs[i];
                         return (_jsx("tr", { className: "hover:bg-fcr-paper/60", children: result.columns.map((c, ci) => {
-                                const text = renderCell(row[c.key] ?? null, c, fmt);
+                                const text = renderCell(row[c.key] ?? null, c, fmt, dateFormat);
                                 // First column links to the record when an href exists and the cell isn't blank.
                                 const linked = ci === 0 && href && text !== "—";
                                 return (_jsx("td", { className: c.numeric ? tdNum : td, children: linked ? (_jsx(Link, { href: href, className: "text-fcr-red hover:underline font-medium", children: text })) : (text) }, c.key));
@@ -48,18 +55,18 @@ function TabularGrid({ result, fmt }) {
                                 const total = byField.get(c.key);
                                 const cls = `${c.numeric ? tdNum : td} font-bold`;
                                 if (total)
-                                    return _jsx("td", { className: cls, children: renderCell(total.value, c, fmt) }, c.key);
+                                    return _jsx("td", { className: cls, children: renderCell(total.value, c, fmt, dateFormat) }, c.key);
                                 if (ci === 0)
                                     return _jsx("td", { className: cls, children: "Total" }, c.key);
                                 return _jsx("td", { className: cls }, c.key);
                             }) }) }));
                 })()] }) }));
 }
-function SummaryGrid({ result, fmt }) {
+function SummaryGrid({ result, fmt, dateFormat }) {
     const groupLabel = result.group.bucket
         ? `${result.group.label} (${result.group.bucket})`
         : result.group.label || "Group";
-    return (_jsx("div", { className: "overflow-x-auto", children: _jsxs("table", { className: "min-w-full border-collapse", children: [_jsx("thead", { children: _jsxs("tr", { children: [_jsx("th", { className: th, scope: "col", children: groupLabel }), result.columns.map((c) => (_jsx("th", { className: thNum, scope: "col", children: c.label }, c.key)))] }) }), _jsx("tbody", { children: result.rows.map((r, i) => (_jsxs("tr", { className: "hover:bg-fcr-paper/60", children: [_jsx("td", { className: td, children: r.groupValue }), result.columns.map((c) => (_jsx("td", { className: tdNum, children: renderSummaryCell(r.values[c.key] ?? null, c, fmt) }, c.key)))] }, i))) }), _jsx("tfoot", { children: _jsxs("tr", { className: "font-bold", children: [_jsx("td", { className: `${td} font-bold`, children: "Total" }), result.columns.map((c) => (_jsx("td", { className: `${tdNum} font-bold`, children: renderSummaryCell(result.total[c.key] ?? null, c, fmt) }, c.key)))] }) })] }) }));
+    return (_jsx("div", { className: "overflow-x-auto", children: _jsxs("table", { className: "min-w-full border-collapse", children: [_jsx("thead", { children: _jsxs("tr", { children: [_jsx("th", { className: th, scope: "col", children: groupLabel }), result.columns.map((c) => (_jsx("th", { className: thNum, scope: "col", children: c.label }, c.key)))] }) }), _jsx("tbody", { children: result.rows.map((r, i) => (_jsxs("tr", { className: "hover:bg-fcr-paper/60", children: [_jsx("td", { className: td, children: fmtGroupLabel(r.groupValue, dateFormat) }), result.columns.map((c) => (_jsx("td", { className: tdNum, children: renderSummaryCell(r.values[c.key] ?? null, c, fmt) }, c.key)))] }, i))) }), _jsx("tfoot", { children: _jsxs("tr", { className: "font-bold", children: [_jsx("td", { className: `${td} font-bold`, children: "Total" }), result.columns.map((c) => (_jsx("td", { className: `${tdNum} font-bold`, children: renderSummaryCell(result.total[c.key] ?? null, c, fmt) }, c.key)))] }) })] }) }));
 }
 // ── Banners + count line ─────────────────────────────────────────────────────────────────────────
 function TruncationBanner({ result }) {
@@ -77,11 +84,11 @@ function CountLine({ result }) {
     return _jsx("p", { className: "mb-2 text-xs uppercase tracking-widest font-bold text-fcr-steel", children: text });
 }
 // ── Public component ───────────────────────────────────────────────────────────────────────────────
-export default function ReportResults({ outcome, fmt = defaultFormatters }) {
+export default function ReportResults({ outcome, fmt = defaultFormatters, dateFormat = "iso" }) {
     if (!outcome.ok) {
         return (_jsxs("div", { className: "rounded-lg border-2 border-fcr-red bg-fcr-red/5 p-4", children: [_jsx("p", { className: "text-sm font-bold uppercase tracking-widest text-fcr-red mb-1", children: "Report error" }), _jsx("ul", { className: "list-disc pl-5 text-sm text-fcr-ink", children: outcome.errors.map((e, i) => (_jsx("li", { children: e }, i))) })] }));
     }
     const { result } = outcome;
     const empty = result.rows.length === 0;
-    return (_jsxs("div", { className: "rounded-lg border-2 border-fcr-line bg-white p-4", children: [_jsx(TruncationBanner, { result: result }), _jsx(CountLine, { result: result }), empty ? (_jsx("p", { className: "py-8 text-center text-sm text-fcr-steel", children: "No rows match this report." })) : result.mode === "tabular" ? (_jsx(TabularGrid, { result: result, fmt: fmt })) : (_jsx(SummaryGrid, { result: result, fmt: fmt }))] }));
+    return (_jsxs("div", { className: "rounded-lg border-2 border-fcr-line bg-white p-4", children: [_jsx(TruncationBanner, { result: result }), _jsx(CountLine, { result: result }), empty ? (_jsx("p", { className: "py-8 text-center text-sm text-fcr-steel", children: "No rows match this report." })) : result.mode === "tabular" ? (_jsx(TabularGrid, { result: result, fmt: fmt, dateFormat: dateFormat })) : (_jsx(SummaryGrid, { result: result, fmt: fmt, dateFormat: dateFormat }))] }));
 }

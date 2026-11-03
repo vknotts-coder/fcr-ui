@@ -1,6 +1,6 @@
 import type { ClientReportObject, ReportDefinition } from "@fcr/core/reports/definition";
 import type { RunOutcome } from "@fcr/core/reports";
-import { type CellFormatters } from "../cells.js";
+import { type CellFormatters, type DateStyle } from "../cells.js";
 /** Result of a save action: the new/updated report id, or validation errors. */
 export type SaveResult = {
     ok: true;
@@ -21,12 +21,15 @@ export type ReportBuilderInitial = {
     definition: ReportDefinition;
     name: string;
 };
-export default function ReportBuilder({ objects, initial, savedReportId, actions, fmt, exportPath, }: {
+export default function ReportBuilder({ objects, initial, savedReportId, actions, fmt, dateFormat, exportPath, }: {
     objects: ClientReportObject[];
     initial?: ReportBuilderInitial | null;
     savedReportId?: string | null;
     actions: ReportBuilderActions;
     fmt?: CellFormatters;
+    /** Date-cell display style for the live preview (`"iso"` default / `"us"` MM/DD/YY). Forwarded to
+     *  ReportResults; the CSV export is unaffected (it re-runs server-side and always emits ISO dates). */
+    dateFormat?: DateStyle;
     exportPath?: string;
 }): import("react").JSX.Element;
 //# sourceMappingURL=report-builder.d.ts.map

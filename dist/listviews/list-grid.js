@@ -5,7 +5,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 // scope are always honored because every render is a fresh scoped query. Styling mirrors the report
 // builder's TabularGrid (report-results.tsx).
 import Link from "next/link";
-import { renderCell, cellTd as td, cellTdNum as tdNum, defaultFormatters } from "../cells.js";
+import { renderCell, dateInputValue, cellTd as td, cellTdNum as tdNum, defaultFormatters } from "../cells.js";
 import { sortQuery } from "./sort-href.js";
 import { EditableCell } from "./editable-cell.js";
 const thBase = "px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-fcr-steel border-b border-fcr-line whitespace-nowrap";
@@ -23,7 +23,7 @@ export function SortableHeader({ col, sort, status, baseParams }) {
     const caret = active ? (sort.dir === "asc" ? "▲" : "▼") : "";
     return (_jsx("th", { className: thBase, scope: "col", "aria-sort": ariaSort, style: { textAlign: col.numeric ? "right" : "left" }, children: _jsxs(Link, { href: `?${sortQuery(col.key, nextDir, status, baseParams)}`, className: `inline-flex items-center gap-1 hover:text-fcr-red ${active ? "text-fcr-red" : ""}`, scroll: false, children: [col.label, _jsx("span", { "aria-hidden": true, className: "text-[8px]", children: caret })] }) }));
 }
-export default function ListGrid({ result, sort, status, baseParams, fmt = defaultFormatters, editable, }) {
+export default function ListGrid({ result, sort, status, baseParams, fmt = defaultFormatters, dateFormat = "iso", editable, }) {
     if (result.rows.length === 0) {
         return _jsx("p", { className: "py-10 text-center text-sm text-fcr-steel", children: "No records match this view." });
     }
@@ -51,14 +51,18 @@ export default function ListGrid({ result, sort, status, baseParams, fmt = defau
                             seenRowKeys.add(rowKey);
                         }
                         return (_jsx("tr", { className: "hover:bg-fcr-paper/60", children: result.columns.map((c, ci) => {
-                                const text = renderCell(row[c.key] ?? null, c, fmt);
+                                const text = renderCell(row[c.key] ?? null, c, fmt, dateFormat);
                                 const linked = ci === 0 && href && text !== "—";
                                 // The first (record-link) column stays navigable; every other column may be editable.
                                 const spec = !linked ? editable?.specFor(c) ?? null : null;
                                 // Reuse the row-level `rid` (one rowId() call per row) as the cell's commit target.
                                 if (spec && rid) {
                                     const v = row[c.key];
-                                    return (_jsx(EditableCell, { rowId: rid, col: c, spec: spec, initialRaw: v == null ? "" : String(v), onCommit: editable.onCommit }, c.key));
+                                    // A date column binds a YYYY-MM-DD calendar string to its <input type="date">. A
+                                    // neon-hydrated Date String()'d here would be a locale toString ("Sat Sep 11 2026 …") —
+                                    // blank input + mangled resting display — so normalize date cells like the display path.
+                                    const initialRaw = c.type === "date" ? dateInputValue(v ?? null) : v == null ? "" : String(v);
+                                    return (_jsx(EditableCell, { rowId: rid, col: c, spec: spec, initialRaw: initialRaw, onCommit: editable.onCommit, dateFormat: dateFormat }, c.key));
                                 }
                                 return (_jsx("td", { className: c.numeric ? tdNum : td, children: linked ? (_jsx(Link, { href: href, className: "text-fcr-red hover:underline font-medium", children: text })) : (text) }, c.key));
                             }) }, rowKey));
