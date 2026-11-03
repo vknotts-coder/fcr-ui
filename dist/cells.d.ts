@@ -22,6 +22,11 @@ export type DateStyle = "iso" | "us";
  *  the historical `String(value).slice(0, 10)` for the string case. */
 export declare function formatDateCell(value: unknown, style?: DateStyle): string;
 export declare const defaultFormatters: CellFormatters;
+/** The raw value an editable DATE cell binds to its `<input type="date">` — a `YYYY-MM-DD` calendar string.
+ *  A neon-hydrated `Date` must NOT be `String()`-ified for this (that yields a locale toString the date input
+ *  rejects as blank, and the resting display can't parse) — route it through the SAME calendar-date
+ *  normalization the display uses. `"—"` (empty/invalid) collapses to `""` (an empty date input). */
+export declare function dateInputValue(value: CellValue): string;
 /** Render a typed cell to display text. Date columns render per `dateStyle` (default `"iso"` = the historical
  *  YYYY-MM-DD head; a consumer passes `"us"` for MM/DD/YY). money/number go through the formatters (the
  *  built-in defaults unless overridden); null is an em dash. `dateStyle` is a serializable string, so unlike

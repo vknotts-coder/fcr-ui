@@ -8,7 +8,14 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 // null and nothing links).
 import Link from "next/link";
 import { REPORT_ROW_CAP } from "@fcr/core/reports/definition";
-import { renderCell, cellTd, cellTdNum, defaultFormatters } from "../cells.js";
+import { renderCell, formatDateCell, cellTd, cellTdNum, defaultFormatters } from "../cells.js";
+/** A grouped report's group label is a plain string — a status/enum, or a date bucket ("2026-03-09" /
+ *  "2026-03" / "2026"). Reshape ONLY a full YYYY-MM-DD day bucket to the requested style; month/year buckets
+ *  and non-date labels pass through untouched (running them through formatDateCell would slice a long label
+ *  to 10 chars). So `dateFormat="us"` reaches grouped-by-day labels too, not just tabular detail cells. */
+function fmtGroupLabel(v, dateStyle) {
+    return dateStyle === "us" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? formatDateCell(v, "us") : v;
+}
 // ── Cell formatting ────────────────────────────────────────────────────────────────────────────────
 function renderSummaryCell(value, col, fmt) {
     if (value === null || value === undefined)
@@ -55,11 +62,11 @@ function TabularGrid({ result, fmt, dateFormat }) {
                             }) }) }));
                 })()] }) }));
 }
-function SummaryGrid({ result, fmt }) {
+function SummaryGrid({ result, fmt, dateFormat }) {
     const groupLabel = result.group.bucket
         ? `${result.group.label} (${result.group.bucket})`
         : result.group.label || "Group";
-    return (_jsx("div", { className: "overflow-x-auto", children: _jsxs("table", { className: "min-w-full border-collapse", children: [_jsx("thead", { children: _jsxs("tr", { children: [_jsx("th", { className: th, scope: "col", children: groupLabel }), result.columns.map((c) => (_jsx("th", { className: thNum, scope: "col", children: c.label }, c.key)))] }) }), _jsx("tbody", { children: result.rows.map((r, i) => (_jsxs("tr", { className: "hover:bg-fcr-paper/60", children: [_jsx("td", { className: td, children: r.groupValue }), result.columns.map((c) => (_jsx("td", { className: tdNum, children: renderSummaryCell(r.values[c.key] ?? null, c, fmt) }, c.key)))] }, i))) }), _jsx("tfoot", { children: _jsxs("tr", { className: "font-bold", children: [_jsx("td", { className: `${td} font-bold`, children: "Total" }), result.columns.map((c) => (_jsx("td", { className: `${tdNum} font-bold`, children: renderSummaryCell(result.total[c.key] ?? null, c, fmt) }, c.key)))] }) })] }) }));
+    return (_jsx("div", { className: "overflow-x-auto", children: _jsxs("table", { className: "min-w-full border-collapse", children: [_jsx("thead", { children: _jsxs("tr", { children: [_jsx("th", { className: th, scope: "col", children: groupLabel }), result.columns.map((c) => (_jsx("th", { className: thNum, scope: "col", children: c.label }, c.key)))] }) }), _jsx("tbody", { children: result.rows.map((r, i) => (_jsxs("tr", { className: "hover:bg-fcr-paper/60", children: [_jsx("td", { className: td, children: fmtGroupLabel(r.groupValue, dateFormat) }), result.columns.map((c) => (_jsx("td", { className: tdNum, children: renderSummaryCell(r.values[c.key] ?? null, c, fmt) }, c.key)))] }, i))) }), _jsx("tfoot", { children: _jsxs("tr", { className: "font-bold", children: [_jsx("td", { className: `${td} font-bold`, children: "Total" }), result.columns.map((c) => (_jsx("td", { className: `${tdNum} font-bold`, children: renderSummaryCell(result.total[c.key] ?? null, c, fmt) }, c.key)))] }) })] }) }));
 }
 // ── Banners + count line ─────────────────────────────────────────────────────────────────────────
 function TruncationBanner({ result }) {
@@ -83,5 +90,5 @@ export default function ReportResults({ outcome, fmt = defaultFormatters, dateFo
     }
     const { result } = outcome;
     const empty = result.rows.length === 0;
-    return (_jsxs("div", { className: "rounded-lg border-2 border-fcr-line bg-white p-4", children: [_jsx(TruncationBanner, { result: result }), _jsx(CountLine, { result: result }), empty ? (_jsx("p", { className: "py-8 text-center text-sm text-fcr-steel", children: "No rows match this report." })) : result.mode === "tabular" ? (_jsx(TabularGrid, { result: result, fmt: fmt, dateFormat: dateFormat })) : (_jsx(SummaryGrid, { result: result, fmt: fmt }))] }));
+    return (_jsxs("div", { className: "rounded-lg border-2 border-fcr-line bg-white p-4", children: [_jsx(TruncationBanner, { result: result }), _jsx(CountLine, { result: result }), empty ? (_jsx("p", { className: "py-8 text-center text-sm text-fcr-steel", children: "No rows match this report." })) : result.mode === "tabular" ? (_jsx(TabularGrid, { result: result, fmt: fmt, dateFormat: dateFormat })) : (_jsx(SummaryGrid, { result: result, fmt: fmt, dateFormat: dateFormat }))] }));
 }

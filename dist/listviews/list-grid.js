@@ -5,7 +5,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 // scope are always honored because every render is a fresh scoped query. Styling mirrors the report
 // builder's TabularGrid (report-results.tsx).
 import Link from "next/link";
-import { renderCell, cellTd as td, cellTdNum as tdNum, defaultFormatters } from "../cells.js";
+import { renderCell, dateInputValue, cellTd as td, cellTdNum as tdNum, defaultFormatters } from "../cells.js";
 import { sortQuery } from "./sort-href.js";
 import { EditableCell } from "./editable-cell.js";
 const thBase = "px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-fcr-steel border-b border-fcr-line whitespace-nowrap";
@@ -58,7 +58,11 @@ export default function ListGrid({ result, sort, status, baseParams, fmt = defau
                                 // Reuse the row-level `rid` (one rowId() call per row) as the cell's commit target.
                                 if (spec && rid) {
                                     const v = row[c.key];
-                                    return (_jsx(EditableCell, { rowId: rid, col: c, spec: spec, initialRaw: v == null ? "" : String(v), onCommit: editable.onCommit, dateFormat: dateFormat }, c.key));
+                                    // A date column binds a YYYY-MM-DD calendar string to its <input type="date">. A
+                                    // neon-hydrated Date String()'d here would be a locale toString ("Sat Sep 11 2026 …") —
+                                    // blank input + mangled resting display — so normalize date cells like the display path.
+                                    const initialRaw = c.type === "date" ? dateInputValue(v ?? null) : v == null ? "" : String(v);
+                                    return (_jsx(EditableCell, { rowId: rid, col: c, spec: spec, initialRaw: initialRaw, onCommit: editable.onCommit, dateFormat: dateFormat }, c.key));
                                 }
                                 return (_jsx("td", { className: c.numeric ? tdNum : td, children: linked ? (_jsx(Link, { href: href, className: "text-fcr-red hover:underline font-medium", children: text })) : (text) }, c.key));
                             }) }, rowKey));

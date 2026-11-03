@@ -10,7 +10,15 @@
 import Link from "next/link";
 import type { ReportColumn, RunOutcome, SummaryResult, TabularResult, SummaryCell } from "@fcr/core/reports";
 import { REPORT_ROW_CAP } from "@fcr/core/reports/definition";
-import { renderCell, cellTd, cellTdNum, defaultFormatters, type CellFormatters, type DateStyle } from "../cells.js";
+import { renderCell, formatDateCell, cellTd, cellTdNum, defaultFormatters, type CellFormatters, type DateStyle } from "../cells.js";
+
+/** A grouped report's group label is a plain string — a status/enum, or a date bucket ("2026-03-09" /
+ *  "2026-03" / "2026"). Reshape ONLY a full YYYY-MM-DD day bucket to the requested style; month/year buckets
+ *  and non-date labels pass through untouched (running them through formatDateCell would slice a long label
+ *  to 10 chars). So `dateFormat="us"` reaches grouped-by-day labels too, not just tabular detail cells. */
+function fmtGroupLabel(v: string, dateStyle: DateStyle): string {
+  return dateStyle === "us" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? formatDateCell(v, "us") : v;
+}
 
 // ── Cell formatting ────────────────────────────────────────────────────────────────────────────────
 
@@ -97,7 +105,7 @@ function TabularGrid({ result, fmt, dateFormat }: { result: TabularResult; fmt: 
   );
 }
 
-function SummaryGrid({ result, fmt }: { result: SummaryResult; fmt: CellFormatters }) {
+function SummaryGrid({ result, fmt, dateFormat }: { result: SummaryResult; fmt: CellFormatters; dateFormat: DateStyle }) {
   const groupLabel = result.group.bucket
     ? `${result.group.label} (${result.group.bucket})`
     : result.group.label || "Group";
@@ -119,7 +127,7 @@ function SummaryGrid({ result, fmt }: { result: SummaryResult; fmt: CellFormatte
         <tbody>
           {result.rows.map((r, i) => (
             <tr key={i} className="hover:bg-fcr-paper/60">
-              <td className={td}>{r.groupValue}</td>
+              <td className={td}>{fmtGroupLabel(r.groupValue, dateFormat)}</td>
               {result.columns.map((c) => (
                 <td key={c.key} className={tdNum}>
                   {renderSummaryCell(r.values[c.key] ?? null, c, fmt)}
@@ -194,7 +202,7 @@ export default function ReportResults({ outcome, fmt = defaultFormatters, dateFo
       ) : result.mode === "tabular" ? (
         <TabularGrid result={result} fmt={fmt} dateFormat={dateFormat} />
       ) : (
-        <SummaryGrid result={result} fmt={fmt} />
+        <SummaryGrid result={result} fmt={fmt} dateFormat={dateFormat} />
       )}
     </div>
   );

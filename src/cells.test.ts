@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from "vitest";
 import type { ReportColumn } from "@fcr/core/reports";
-import { renderCell, defaultFormatters, formatDateCell, type CellFormatters } from "./cells.js";
+import { renderCell, defaultFormatters, formatDateCell, dateInputValue, type CellFormatters } from "./cells.js";
 
 // Sentinel formatters: prove renderCell routes money→money and number→number (not swapped, not a default).
 const fmt: CellFormatters = {
@@ -72,6 +72,19 @@ describe("formatDateCell — iso (default) vs us", () => {
     expect(formatDateCell(null, "us")).toBe("—");
     expect(formatDateCell("", "us")).toBe("—");
     expect(formatDateCell("not-a-date", "us")).toBe("not-a-date");
+  });
+});
+
+describe("dateInputValue — the editable date cell's <input type=date> value", () => {
+  it("a neon-hydrated Date normalizes to YYYY-MM-DD (NOT String(Date), which the date input rejects)", () => {
+    // The HIGH finding: the editable path did String(v); for a Date that is "Fri Sep 11 2026 …" → blank input.
+    expect(dateInputValue(new Date(Date.UTC(2026, 8, 11)))).toBe("2026-09-11");
+    expect(String(new Date(Date.UTC(2026, 8, 11)))).not.toBe("2026-09-11"); // the bug this guards
+  });
+  it("a YYYY-MM-DD string passes through; null/invalid → empty string", () => {
+    expect(dateInputValue("2026-09-11")).toBe("2026-09-11");
+    expect(dateInputValue(null)).toBe("");
+    expect(dateInputValue("" as unknown as null)).toBe("");
   });
 });
 

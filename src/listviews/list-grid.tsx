@@ -7,7 +7,7 @@
 import Link from "next/link";
 import type { CellValue, ReportColumn, TabularResult } from "@fcr/core/reports";
 import type { ReportSort } from "@fcr/core/reports/definition";
-import { renderCell, cellTd as td, cellTdNum as tdNum, defaultFormatters, type CellFormatters, type DateStyle } from "../cells.js";
+import { renderCell, dateInputValue, cellTd as td, cellTdNum as tdNum, defaultFormatters, type CellFormatters, type DateStyle } from "../cells.js";
 import { sortQuery } from "./sort-href.js";
 import { EditableCell, type EditInput, type EditCommit } from "./editable-cell.js";
 
@@ -129,13 +129,17 @@ export default function ListGrid({
                   // Reuse the row-level `rid` (one rowId() call per row) as the cell's commit target.
                   if (spec && rid) {
                     const v = row[c.key];
+                    // A date column binds a YYYY-MM-DD calendar string to its <input type="date">. A
+                    // neon-hydrated Date String()'d here would be a locale toString ("Sat Sep 11 2026 …") —
+                    // blank input + mangled resting display — so normalize date cells like the display path.
+                    const initialRaw = c.type === "date" ? dateInputValue(v ?? null) : v == null ? "" : String(v);
                     return (
                       <EditableCell
                         key={c.key}
                         rowId={rid}
                         col={c}
                         spec={spec}
-                        initialRaw={v == null ? "" : String(v)}
+                        initialRaw={initialRaw}
                         onCommit={editable!.onCommit}
                         dateFormat={dateFormat}
                       />

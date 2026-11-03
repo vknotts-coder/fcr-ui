@@ -70,6 +70,15 @@ const _toNumber: Formatter = (v) => {
 };
 export const defaultFormatters: CellFormatters = { money: _toMoney, number: _toNumber };
 
+/** The raw value an editable DATE cell binds to its `<input type="date">` — a `YYYY-MM-DD` calendar string.
+ *  A neon-hydrated `Date` must NOT be `String()`-ified for this (that yields a locale toString the date input
+ *  rejects as blank, and the resting display can't parse) — route it through the SAME calendar-date
+ *  normalization the display uses. `"—"` (empty/invalid) collapses to `""` (an empty date input). */
+export function dateInputValue(value: CellValue): string {
+  const iso = formatDateCell(value, "iso");
+  return iso === "—" ? "" : iso;
+}
+
 /** Render a typed cell to display text. Date columns render per `dateStyle` (default `"iso"` = the historical
  *  YYYY-MM-DD head; a consumer passes `"us"` for MM/DD/YY). money/number go through the formatters (the
  *  built-in defaults unless overridden); null is an em dash. `dateStyle` is a serializable string, so unlike
