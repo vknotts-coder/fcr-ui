@@ -54,3 +54,53 @@ export function reconcileColumns(saved, live) {
     }
     return out;
 }
+/**
+ * Toggle the `hidden` flag of the column at `index`, returning a NEW array. A locked-leading column
+ * (`index < lockedLeading`) is NEVER hidden — its toggle is a no-op copy (the record-link column must stay
+ * visible). An out-of-range index returns a copy unchanged.
+ */
+export function toggleHidden(cols, index, lockedLeading) {
+    const lock = Math.min(Math.max(0, lockedLeading), cols.length);
+    const next = cols.map((c) => ({ ...c }));
+    if (index < lock || index < 0 || index >= next.length)
+        return next;
+    next[index].hidden = !next[index].hidden;
+    return next;
+}
+/**
+ * Reconcile a (possibly stale) working arrangement against the LIVE columns, preserving the user's order
+ * AND hidden flags: keep working items whose key still exists in `live` (in working order, carrying the
+ * working `hidden` flag but the LIVE label), then append any live column the working set never mentioned —
+ * VISIBLE, in live order, at the end (a column added to the catalog since the user arranged shows up, never
+ * silently hidden). Dead keys drop. Mirrors @fcr/core's read-side `resolveColumns`, applied client-side on
+ * SAVE so a save during drift never persists a stale arrangement. Result is exactly the `live` set, arranged.
+ */
+export function reconcileArrangement(working, live) {
+    const liveByKey = new Map(live.map((c) => [c.key, c]));
+    const seen = new Set();
+    const out = [];
+    for (const w of working) {
+        const lc = liveByKey.get(w.key);
+        if (lc && !seen.has(w.key)) {
+            out.push({ key: lc.key, label: lc.label, hidden: w.hidden });
+            seen.add(w.key);
+        }
+    }
+    for (const c of live) {
+        if (!seen.has(c.key)) {
+            out.push({ key: c.key, label: c.label, hidden: false });
+            seen.add(c.key);
+        }
+    }
+    return out;
+}
+/** Serialize a working arrangement to the @fcr/core `saveListViewPref` shape: the full ordered key list
+ *  plus the hidden subset. (The record-link / locked leaders are never hidden, so they never appear in
+ *  `hidden` by construction.) */
+export function serializeArrangement(cols) {
+    return { order: cols.map((c) => c.key), hidden: cols.filter((c) => c.hidden).map((c) => c.key) };
+}
+/** True when two arrangements carry the same keys in the same order AND the same hidden flags. */
+export function sameArrangement(a, b) {
+    return a.length === b.length && a.every((c, i) => c.key === b[i].key && c.hidden === b[i].hidden);
+}
