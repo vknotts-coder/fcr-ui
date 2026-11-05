@@ -54,3 +54,58 @@ export function reconcileColumns(saved, live) {
     }
     return out;
 }
+/**
+ * Toggle the `hidden` flag of the column at `index`, returning a NEW array. A locked-leading column
+ * (`index < lockedLeading`) is NEVER hidden — its toggle is a no-op copy (the record-link column must stay
+ * visible). An out-of-range index returns a copy unchanged.
+ */
+export function toggleHidden(cols, index, lockedLeading) {
+    const lock = Math.min(Math.max(0, lockedLeading), cols.length);
+    const next = cols.map((c) => ({ ...c }));
+    if (index < lock || index < 0 || index >= next.length)
+        return next;
+    next[index].hidden = !next[index].hidden;
+    return next;
+}
+/**
+ * Reconcile a (possibly stale) working arrangement against the LIVE columns, preserving the user's order
+ * AND hidden flags: keep working items whose key still exists in `live` (in working order, carrying the
+ * working `hidden` flag but the LIVE label), then append any live column the working set never mentioned —
+ * VISIBLE, in live order, at the end (a column added to the catalog since the user arranged shows up, never
+ * silently hidden). Dead keys drop. Mirrors @fcr/core's read-side `resolveColumns`, applied client-side on
+ * SAVE so a save during drift never persists a stale arrangement. Result is exactly the `live` set, arranged.
+ */
+export function reconcileArrangement(working, live) {
+    // Delegate the ordering/dedupe/drop-dead/append-new invariant to reconcileColumns (ONE definition), then
+    // overlay the working `hidden` flags: a kept key carries the user's working flag; a newly-appended live
+    // column (not in working) defaults VISIBLE (`?? false`). Labels come from the live instances reconcileColumns returns.
+    const workingHidden = new Map(working.map((w) => [w.key, w.hidden]));
+    return reconcileColumns(working, live).map((c) => ({
+        key: c.key,
+        label: c.label,
+        hidden: workingHidden.get(c.key) ?? false,
+    }));
+}
+/** Serialize a working arrangement to the @fcr/core `saveListViewPref` shape: the full ordered key list
+ *  plus the hidden subset. (The record-link / locked leaders are never hidden, so they never appear in
+ *  `hidden` by construction.)
+ *
+ *  WRITE-SIDE empty-grid floor: never serialize an arrangement with zero visible columns. The UI already
+ *  forbids hiding the last visible column, but drift (the panel left open suppresses re-sync, so the last
+ *  visible key could drop out of `live` with nothing new appended) could otherwise produce an all-hidden
+ *  result — and with `lockedLeading:0` there is no forced leader. If every column is hidden, keep the FIRST
+ *  one visible before persisting. @fcr/core `resolveColumns` has the same net on read; this stops a
+ *  zero-visible arrangement from ever reaching the store. */
+export function serializeArrangement(cols) {
+    const order = cols.map((c) => c.key);
+    let hidden = cols.filter((c) => c.hidden).map((c) => c.key);
+    if (order.length > 0 && hidden.length === order.length) {
+        const firstVisible = order[0];
+        hidden = hidden.filter((k) => k !== firstVisible);
+    }
+    return { order, hidden };
+}
+/** True when two arrangements carry the same keys in the same order AND the same hidden flags. */
+export function sameArrangement(a, b) {
+    return a.length === b.length && a.every((c, i) => c.key === b[i].key && c.hidden === b[i].hidden);
+}

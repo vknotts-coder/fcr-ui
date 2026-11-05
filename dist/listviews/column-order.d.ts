@@ -25,4 +25,40 @@ export declare function sameKeyOrder(a: {
 export declare function reconcileColumns<T extends {
     key: string;
 }>(saved: T[], live: T[]): T[];
+export type HideableColumn = {
+    key: string;
+    label: string;
+    hidden: boolean;
+};
+/**
+ * Toggle the `hidden` flag of the column at `index`, returning a NEW array. A locked-leading column
+ * (`index < lockedLeading`) is NEVER hidden — its toggle is a no-op copy (the record-link column must stay
+ * visible). An out-of-range index returns a copy unchanged.
+ */
+export declare function toggleHidden(cols: HideableColumn[], index: number, lockedLeading: number): HideableColumn[];
+/**
+ * Reconcile a (possibly stale) working arrangement against the LIVE columns, preserving the user's order
+ * AND hidden flags: keep working items whose key still exists in `live` (in working order, carrying the
+ * working `hidden` flag but the LIVE label), then append any live column the working set never mentioned —
+ * VISIBLE, in live order, at the end (a column added to the catalog since the user arranged shows up, never
+ * silently hidden). Dead keys drop. Mirrors @fcr/core's read-side `resolveColumns`, applied client-side on
+ * SAVE so a save during drift never persists a stale arrangement. Result is exactly the `live` set, arranged.
+ */
+export declare function reconcileArrangement(working: HideableColumn[], live: HideableColumn[]): HideableColumn[];
+/** Serialize a working arrangement to the @fcr/core `saveListViewPref` shape: the full ordered key list
+ *  plus the hidden subset. (The record-link / locked leaders are never hidden, so they never appear in
+ *  `hidden` by construction.)
+ *
+ *  WRITE-SIDE empty-grid floor: never serialize an arrangement with zero visible columns. The UI already
+ *  forbids hiding the last visible column, but drift (the panel left open suppresses re-sync, so the last
+ *  visible key could drop out of `live` with nothing new appended) could otherwise produce an all-hidden
+ *  result — and with `lockedLeading:0` there is no forced leader. If every column is hidden, keep the FIRST
+ *  one visible before persisting. @fcr/core `resolveColumns` has the same net on read; this stops a
+ *  zero-visible arrangement from ever reaching the store. */
+export declare function serializeArrangement(cols: HideableColumn[]): {
+    order: string[];
+    hidden: string[];
+};
+/** True when two arrangements carry the same keys in the same order AND the same hidden flags. */
+export declare function sameArrangement(a: HideableColumn[], b: HideableColumn[]): boolean;
 //# sourceMappingURL=column-order.d.ts.map
