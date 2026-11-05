@@ -47,7 +47,14 @@ export declare function toggleHidden(cols: HideableColumn[], index: number, lock
 export declare function reconcileArrangement(working: HideableColumn[], live: HideableColumn[]): HideableColumn[];
 /** Serialize a working arrangement to the @fcr/core `saveListViewPref` shape: the full ordered key list
  *  plus the hidden subset. (The record-link / locked leaders are never hidden, so they never appear in
- *  `hidden` by construction.) */
+ *  `hidden` by construction.)
+ *
+ *  WRITE-SIDE empty-grid floor: never serialize an arrangement with zero visible columns. The UI already
+ *  forbids hiding the last visible column, but drift (the panel left open suppresses re-sync, so the last
+ *  visible key could drop out of `live` with nothing new appended) could otherwise produce an all-hidden
+ *  result — and with `lockedLeading:0` there is no forced leader. If every column is hidden, keep the FIRST
+ *  one visible before persisting. @fcr/core `resolveColumns` has the same net on read; this stops a
+ *  zero-visible arrangement from ever reaching the store. */
 export declare function serializeArrangement(cols: HideableColumn[]): {
     order: string[];
     hidden: string[];

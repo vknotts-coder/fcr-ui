@@ -45,6 +45,11 @@ describe("serializeArrangement", () => {
   it("nothing hidden → empty hidden list (round-trips to the bare-array store on the @fcr/core side)", () => {
     expect(serializeArrangement(arr("id", "a", "b"))).toEqual({ order: ["id", "a", "b"], hidden: [] });
   });
+
+  it("WRITE-SIDE FLOOR: an all-hidden arrangement keeps the FIRST column visible (never a zero-visible store)", () => {
+    const allHidden = [col("id", true), col("a", true), col("b", true)];
+    expect(serializeArrangement(allHidden)).toEqual({ order: ["id", "a", "b"], hidden: ["a", "b"] });
+  });
 });
 
 describe("sameArrangement", () => {
@@ -100,5 +105,14 @@ describe("reconcileArrangement", () => {
     const working = [col("id"), col("c", true), col("a")];
     expect(serializeArrangement(reconcileArrangement(working, live)))
       .toEqual({ order: ["id", "c", "a", "b"], hidden: ["c"] });
+  });
+
+  it("DRIFT: the last visible column drops from live → the write-side floor still keeps one visible", () => {
+    // working: only "a" is visible; both others hidden. live drops "a" (and has no leader to force).
+    const working = [col("id", true), col("a"), col("b", true)];
+    const liveNoA = [col("id"), col("b")];
+    const arrangement = reconcileArrangement(working, liveNoA); // id(hidden), b(hidden) → all hidden
+    expect(arrangement.every((c) => c.hidden)).toBe(true);
+    expect(serializeArrangement(arrangement)).toEqual({ order: ["id", "b"], hidden: ["b"] }); // id forced visible
   });
 });
