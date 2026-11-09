@@ -60,6 +60,10 @@ export declare function UploadFormView(props: {
         placeholder: string;
         value: string;
         onChange: (v: string) => void;
+        options?: readonly {
+            value: string;
+            label: string;
+        }[];
     };
     helperText: string;
     state: UseBlobUpload;

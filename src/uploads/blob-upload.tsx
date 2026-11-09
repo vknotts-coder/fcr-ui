@@ -239,7 +239,15 @@ export function UploadFormView(props: {
   headerLabel: string;
   accept: string;
   fileAriaLabel: string;
-  extra: { ariaLabel: string; placeholder: string; value: string; onChange: (v: string) => void };
+  // The one extra field. Free text by default (purpose/caption); when `options` is supplied it renders a
+  // <select> instead (e.g. a file-kind picker), its chosen value flowing through the same value/onChange seam.
+  extra: {
+    ariaLabel: string;
+    placeholder: string;
+    value: string;
+    onChange: (v: string) => void;
+    options?: readonly { value: string; label: string }[];
+  };
   helperText: string;
   state: UseBlobUpload;
 }): ReactNode {
@@ -257,13 +265,29 @@ export function UploadFormView(props: {
           accept={props.accept}
           className="text-sm file:mr-2 file:rounded file:border-0 file:bg-fcr-ink file:text-white file:px-3 file:py-1 file:text-xs"
         />
-        <input
-          aria-label={props.extra.ariaLabel}
-          placeholder={props.extra.placeholder}
-          value={props.extra.value}
-          onChange={(e) => props.extra.onChange(e.target.value)}
-          className={field}
-        />
+        {props.extra.options ? (
+          <select
+            aria-label={props.extra.ariaLabel}
+            value={props.extra.value}
+            onChange={(e) => props.extra.onChange(e.target.value)}
+            className={field}
+          >
+            <option value="">{props.extra.placeholder}</option>
+            {props.extra.options.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            aria-label={props.extra.ariaLabel}
+            placeholder={props.extra.placeholder}
+            value={props.extra.value}
+            onChange={(e) => props.extra.onChange(e.target.value)}
+            className={field}
+          />
+        )}
       </div>
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm">
