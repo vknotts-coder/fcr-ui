@@ -10,7 +10,7 @@ import { useState } from "react";
 import { MAX_FILE_BYTES, ALLOWED_TYPES } from "@fcr/core/uploads";
 import { useBlobUpload, UploadFormView } from "./blob-upload.js";
 const ACCEPT = ALLOWED_TYPES.join(",");
-export default function FileUploadForm({ unitType, unitId, upload, finalize, uploadUrl = "/api/records/file", }) {
+export default function FileUploadForm({ unitType, unitId, upload, finalize, uploadUrl = "/api/records/file", purposeOptions, purposeLabel = "Purpose", purposePlaceholder = "purpose (e.g. tow bill for accounting)", }) {
     const [purpose, setPurpose] = useState("");
     const state = useBlobUpload({
         unitType,
@@ -37,9 +37,10 @@ export default function FileUploadForm({ unitType, unitId, upload, finalize, upl
         onSuccess: () => setPurpose(""),
     });
     return (_jsx(UploadFormView, { headerLabel: "Upload receipts / files", accept: ACCEPT, fileAriaLabel: "File", extra: {
-            ariaLabel: "Purpose",
-            placeholder: "purpose (e.g. tow bill for accounting)",
+            ariaLabel: purposeLabel,
+            placeholder: purposePlaceholder,
             value: purpose,
             onChange: setPurpose,
-        }, helperText: `PDF or image, up to ${state.maxMb} MB each. Select one or more; the purpose applies to all.`, state: state }));
+            options: purposeOptions,
+        }, helperText: `PDF or image, up to ${state.maxMb} MB each. Select one or more; the ${purposeOptions ? "file type" : "purpose"} applies to all.`, state: state }));
 }
