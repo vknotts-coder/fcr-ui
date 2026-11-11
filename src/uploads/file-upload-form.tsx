@@ -14,7 +14,7 @@ export type { BlobUploadFn };
 
 // The app's finalize server action — records the row from the already-uploaded blob's metadata.
 export type FinalizeUploadFn = (input: {
-  unitType: "truck" | "trailer";
+  unitType: "truck" | "trailer" | "donor";
   unitId: string;
   filename: string;
   blobUrl: string;
@@ -25,7 +25,7 @@ export type FinalizeUploadFn = (input: {
 }) => Promise<{ ok: boolean; errors?: string[] }>;
 
 export interface FileUploadFormProps {
-  unitType: "truck" | "trailer";
+  unitType: "truck" | "trailer" | "donor";
   unitId: string;
   upload: BlobUploadFn;
   finalize: FinalizeUploadFn;

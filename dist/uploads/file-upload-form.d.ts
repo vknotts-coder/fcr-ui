@@ -1,7 +1,7 @@
 import { type BlobUploadFn } from "./blob-upload.js";
 export type { BlobUploadFn };
 export type FinalizeUploadFn = (input: {
-    unitType: "truck" | "trailer";
+    unitType: "truck" | "trailer" | "donor";
     unitId: string;
     filename: string;
     blobUrl: string;
@@ -14,7 +14,7 @@ export type FinalizeUploadFn = (input: {
     errors?: string[];
 }>;
 export interface FileUploadFormProps {
-    unitType: "truck" | "trailer";
+    unitType: "truck" | "trailer" | "donor";
     unitId: string;
     upload: BlobUploadFn;
     finalize: FinalizeUploadFn;
