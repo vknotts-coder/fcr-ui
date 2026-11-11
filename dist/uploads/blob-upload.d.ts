@@ -20,7 +20,7 @@ export type UploadedBlobMeta = {
     byteSize: number;
 };
 export type UseBlobUploadOpts<P> = {
-    unitType: "truck" | "trailer";
+    unitType: "truck" | "trailer" | "donor";
     unitId: string;
     upload: BlobUploadFn;
     finalize: (input: P) => Promise<UploadActionResult>;
