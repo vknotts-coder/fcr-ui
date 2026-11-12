@@ -5,7 +5,7 @@
 // This mirrors the list-view column arrangement, so the generic `moveColumn` (clamped move with a locked
 // leading region) is reused directly for the pinned-first move; collapse has NO lock (the pinned Information
 // section IS collapsible — only its POSITION is fixed).
-import { moveColumn } from "../listviews/column-order.js";
+import { moveColumn, reconcileColumns } from "../listviews/column-order.js";
 /** Move the section at `index` by `dir` (-1 up, +1 down), clamped out of the locked leading region
  *  (`lock` = 1 when the pinned section is first, so it never moves and nothing moves above it). */
 export function moveSection(items, index, dir, lock) {
@@ -37,25 +37,15 @@ export function sameSectionState(a, b) {
  * the live set. Mirrors @fcr/core's read-side `resolveSections`, applied client-side when props drift.
  */
 export function reconcileSections(working, liveKeys, pinnedKey) {
-    const live = new Set(liveKeys);
-    const out = [];
-    const seen = new Set();
-    for (const w of working) {
-        if (live.has(w.key) && !seen.has(w.key)) {
-            out.push({ ...w });
-            seen.add(w.key);
-        }
-    }
-    for (const k of liveKeys) {
-        if (!seen.has(k)) {
-            out.push({ key: k, collapsed: false });
-            seen.add(k);
-        }
-    }
-    if (pinnedKey && seen.has(pinnedKey)) {
-        const idx = out.findIndex((s) => s.key === pinnedKey);
+    // Delegate the keep-survivors / append-new / drop-dead / dedupe invariant to reconcileColumns over {key}
+    // stubs (ONE definition — the same move reconcileArrangement makes), overlay the working collapsed flag via
+    // a Map (a section new since the save defaults expanded, `?? false`), then re-pin the pinned section first.
+    const workingCollapsed = new Map(working.map((w) => [w.key, w.collapsed]));
+    const merged = reconcileColumns(working.map((w) => ({ key: w.key })), liveKeys.map((k) => ({ key: k }))).map((c) => ({ key: c.key, collapsed: workingCollapsed.get(c.key) ?? false }));
+    if (pinnedKey) {
+        const idx = merged.findIndex((s) => s.key === pinnedKey);
         if (idx > 0)
-            out.unshift(out.splice(idx, 1)[0]);
+            merged.unshift(merged.splice(idx, 1)[0]);
     }
-    return out;
+    return merged;
 }

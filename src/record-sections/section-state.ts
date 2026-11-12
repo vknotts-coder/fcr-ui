@@ -6,7 +6,7 @@
 // leading region) is reused directly for the pinned-first move; collapse has NO lock (the pinned Information
 // section IS collapsible — only its POSITION is fixed).
 
-import { moveColumn } from "../listviews/column-order.js";
+import { moveColumn, reconcileColumns } from "../listviews/column-order.js";
 
 /** One section's stateful bits: its key and whether its body is collapsed. Title + content live in the
  *  component (they come from props and aren't part of the persisted/movable state). */
@@ -50,24 +50,17 @@ export function reconcileSections(
   liveKeys: string[],
   pinnedKey?: string,
 ): SectionMeta[] {
-  const live = new Set(liveKeys);
-  const out: SectionMeta[] = [];
-  const seen = new Set<string>();
-  for (const w of working) {
-    if (live.has(w.key) && !seen.has(w.key)) {
-      out.push({ ...w });
-      seen.add(w.key);
-    }
+  // Delegate the keep-survivors / append-new / drop-dead / dedupe invariant to reconcileColumns over {key}
+  // stubs (ONE definition — the same move reconcileArrangement makes), overlay the working collapsed flag via
+  // a Map (a section new since the save defaults expanded, `?? false`), then re-pin the pinned section first.
+  const workingCollapsed = new Map(working.map((w) => [w.key, w.collapsed]));
+  const merged = reconcileColumns(
+    working.map((w) => ({ key: w.key })),
+    liveKeys.map((k) => ({ key: k })),
+  ).map((c) => ({ key: c.key, collapsed: workingCollapsed.get(c.key) ?? false }));
+  if (pinnedKey) {
+    const idx = merged.findIndex((s) => s.key === pinnedKey);
+    if (idx > 0) merged.unshift(merged.splice(idx, 1)[0]!);
   }
-  for (const k of liveKeys) {
-    if (!seen.has(k)) {
-      out.push({ key: k, collapsed: false });
-      seen.add(k);
-    }
-  }
-  if (pinnedKey && seen.has(pinnedKey)) {
-    const idx = out.findIndex((s) => s.key === pinnedKey);
-    if (idx > 0) out.unshift(out.splice(idx, 1)[0]!);
-  }
-  return out;
+  return merged;
 }

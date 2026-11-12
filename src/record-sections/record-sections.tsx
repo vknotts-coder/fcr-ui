@@ -100,10 +100,11 @@ export function RecordSections({
               <button
                 type="button"
                 onClick={() => persist(toggleCollapsed(metas, i))}
+                disabled={pending}
                 aria-expanded={!m.collapsed}
                 aria-controls={bodyId}
                 aria-label={m.collapsed ? `Expand ${s.title}` : `Collapse ${s.title}`}
-                className="shrink-0 text-fcr-steel hover:text-fcr-ink"
+                className="shrink-0 text-fcr-steel hover:text-fcr-ink disabled:opacity-40"
               >
                 <span aria-hidden className="inline-block w-3 text-xs">
                   {m.collapsed ? "▸" : "▾"}
@@ -137,11 +138,10 @@ export function RecordSections({
                 </span>
               )}
             </div>
-            {!m.collapsed && (
-              <div id={bodyId} className="p-4">
-                {s.children}
-              </div>
-            )}
+            {/* Always rendered (hidden when collapsed) so the header's aria-controls={bodyId} always resolves. */}
+            <div id={bodyId} className="p-4" hidden={m.collapsed}>
+              {s.children}
+            </div>
           </section>
         );
       })}
