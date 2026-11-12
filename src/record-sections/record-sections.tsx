@@ -38,7 +38,9 @@ export function RecordSections({
 }: {
   /** Sections in resolved render order (pinned first), each with its initial collapsed flag + body. */
   sections: SectionItem[];
-  actions: RecordSectionsActions;
+  /** Persistence hook. OMIT to make reorder/collapse local-only for the session (e.g. a viewer without an
+   *  account to key the pref to) — the controls still work, nothing is saved, and no save can error. */
+  actions?: RecordSectionsActions;
   /** The section pinned first + not reorderable (still collapsible). Usually "information". */
   pinnedKey?: string;
 }) {
@@ -63,6 +65,7 @@ export function RecordSections({
 
   function persist(next: SectionMeta[]) {
     setMetas(next);
+    if (!actions) return; // local-only mode: reorder/collapse for the session, nothing persisted
     start(async () => {
       try {
         await actions.onSave(serializeSections(next));

@@ -32,6 +32,8 @@ export function RecordSections({ sections, actions, pinnedKey, }) {
     const lock = pinnedKey && metas[0]?.key === pinnedKey ? 1 : 0;
     function persist(next) {
         setMetas(next);
+        if (!actions)
+            return; // local-only mode: reorder/collapse for the session, nothing persisted
         start(async () => {
             try {
                 await actions.onSave(serializeSections(next));

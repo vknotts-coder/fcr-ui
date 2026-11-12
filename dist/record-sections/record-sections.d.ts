@@ -16,7 +16,9 @@ export type RecordSectionsActions = {
 export declare function RecordSections({ sections, actions, pinnedKey, }: {
     /** Sections in resolved render order (pinned first), each with its initial collapsed flag + body. */
     sections: SectionItem[];
-    actions: RecordSectionsActions;
+    /** Persistence hook. OMIT to make reorder/collapse local-only for the session (e.g. a viewer without an
+     *  account to key the pref to) — the controls still work, nothing is saved, and no save can error. */
+    actions?: RecordSectionsActions;
     /** The section pinned first + not reorderable (still collapsible). Usually "information". */
     pinnedKey?: string;
 }): import("react").JSX.Element;
