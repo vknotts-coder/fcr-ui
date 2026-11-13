@@ -18,6 +18,11 @@ import {
   type DuplicateHit,
 } from "@fcr/core/intake";
 import { RecordPicker, ContactSelect, type PickerHit } from "./record-picker.js";
+import {
+  CustomerContactFields,
+  type CustomerSelection,
+  type ContactSelection,
+} from "./customer-select.js";
 
 /** Wiring for the coordinated account + contact typeahead pickers. When supplied, UnitForm renders
  *  these two columns as searchable RecordPickers instead of plain sf-id text inputs: the account
@@ -35,6 +40,16 @@ export interface AccountContactConfig {
   /** Edit-mode: preselected account/contact (resolved sf_id → hit by the caller). */
   initialAccount?: PickerHit | null;
   initialContact?: PickerHit | null;
+  /**
+   * Opt-in: also let the user CREATE a new customer/contact inline (not just pick an existing one).
+   * When true, UnitForm renders the shared CustomerContactFields (existing/new toggle) in place of the
+   * picker-only pair, submitting the customer_mode/new_customer_* contract instead of accountColumn/
+   * contactColumn — so the app's server action MUST resolve that contract (e.g. @fcr/core/intake's
+   * resolveCustomerRef/resolveContactRef) rather than reading a bare sf_id. Effective in CREATE mode only;
+   * edit mode keeps the pickers (you don't re-create a customer when editing a unit). Back-compat: absent/
+   * false keeps the picker-only behavior every existing consumer relies on.
+   */
+  allowNew?: boolean;
 }
 
 export interface FormState {
@@ -87,6 +102,17 @@ export default function UnitForm({
   const [account, setAccount] = useState<PickerHit | null>(accountContact?.initialAccount ?? null);
   // Contact is a LOADED picklist (ContactSelect) — its value is just the selected sf_id string.
   const [contactId, setContactId] = useState<string>(accountContact?.initialContact?.sf_id ?? "");
+  // New-customer-capable path (opt-in, create mode only): CustomerContactFields holds its own
+  // existing/new selection. Picker-only consumers never enter this branch.
+  const useNewCustomer = Boolean(accountContact?.allowNew) && mode === "create";
+  const [customerSel, setCustomerSel] = useState<CustomerSelection>({
+    mode: "existing",
+    account: accountContact?.initialAccount ?? null,
+  });
+  const [contactSel, setContactSel] = useState<ContactSelection>({
+    mode: "existing",
+    ref: accountContact?.initialContact?.sf_id ?? "",
+  });
   const acCols = new Set(accountContact ? [accountContact.accountColumn, accountContact.contactColumn] : []);
   const acSection = accountContact
     ? fields.find((f) => f.column === accountContact.accountColumn)?.section
@@ -151,7 +177,23 @@ export default function UnitForm({
           <section key={section} className="bg-white border border-fcr-line rounded-2xl p-4">
             <h2 className="text-sm uppercase tracking-wide text-fcr-ink font-bold mb-3">{SECTION_TITLES[section]}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
-              {showPickers && accountContact && (
+              {showPickers && accountContact && useNewCustomer && (
+                // New-customer-capable: the shared existing/new toggle + inline fields. Spans the whole
+                // section row (it renders its own Customer/Contact cards). Submits the customer_mode/
+                // new_customer_* contract the app action resolves via @fcr/core/intake.
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <CustomerContactFields
+                    accountEndpoint={accountContact.accountEndpoint}
+                    contactEndpoint={accountContact.contactEndpoint}
+                    customer={customerSel}
+                    onCustomer={setCustomerSel}
+                    contact={contactSel}
+                    onContact={setContactSel}
+                    invalidFields={errorFields}
+                  />
+                </div>
+              )}
+              {showPickers && accountContact && !useNewCustomer && (
                 <>
                   <RecordPicker
                     name={accountContact.accountColumn}

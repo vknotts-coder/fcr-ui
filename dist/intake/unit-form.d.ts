@@ -17,6 +17,16 @@ export interface AccountContactConfig {
     /** Edit-mode: preselected account/contact (resolved sf_id → hit by the caller). */
     initialAccount?: PickerHit | null;
     initialContact?: PickerHit | null;
+    /**
+     * Opt-in: also let the user CREATE a new customer/contact inline (not just pick an existing one).
+     * When true, UnitForm renders the shared CustomerContactFields (existing/new toggle) in place of the
+     * picker-only pair, submitting the customer_mode/new_customer_* contract instead of accountColumn/
+     * contactColumn — so the app's server action MUST resolve that contract (e.g. @fcr/core/intake's
+     * resolveCustomerRef/resolveContactRef) rather than reading a bare sf_id. Effective in CREATE mode only;
+     * edit mode keeps the pickers (you don't re-create a customer when editing a unit). Back-compat: absent/
+     * false keeps the picker-only behavior every existing consumer relies on.
+     */
+    allowNew?: boolean;
 }
 export interface FormState {
     errors?: ValidationError[];

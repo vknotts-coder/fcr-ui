@@ -11,6 +11,7 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 import { useActionState, useState } from "react";
 import { SECTION_ORDER, SECTION_TITLES, } from "@fcr/core/intake";
 import { RecordPicker, ContactSelect } from "./record-picker.js";
+import { CustomerContactFields, } from "./customer-select.js";
 export default function UnitForm({ action, fields, mode, cancelHref, initial = {}, fieldOptions, pickerColumns = [], renderPicker, accountContact, submitLabel, }) {
     const [state, formAction, pending] = useActionState(action, {});
     const errors = state.errors ?? [];
@@ -22,6 +23,17 @@ export default function UnitForm({ action, fields, mode, cancelHref, initial = {
     const [account, setAccount] = useState(accountContact?.initialAccount ?? null);
     // Contact is a LOADED picklist (ContactSelect) — its value is just the selected sf_id string.
     const [contactId, setContactId] = useState(accountContact?.initialContact?.sf_id ?? "");
+    // New-customer-capable path (opt-in, create mode only): CustomerContactFields holds its own
+    // existing/new selection. Picker-only consumers never enter this branch.
+    const useNewCustomer = Boolean(accountContact?.allowNew) && mode === "create";
+    const [customerSel, setCustomerSel] = useState({
+        mode: "existing",
+        account: accountContact?.initialAccount ?? null,
+    });
+    const [contactSel, setContactSel] = useState({
+        mode: "existing",
+        ref: accountContact?.initialContact?.sf_id ?? "",
+    });
     const acCols = new Set(accountContact ? [accountContact.accountColumn, accountContact.contactColumn] : []);
     const acSection = accountContact
         ? fields.find((f) => f.column === accountContact.accountColumn)?.section
@@ -46,7 +58,11 @@ export default function UnitForm({ action, fields, mode, cancelHref, initial = {
                 const showPickers = accountContact && section === acSection;
                 if (list.length === 0 && !showPickers)
                     return null;
-                return (_jsxs("section", { className: "bg-white border border-fcr-line rounded-2xl p-4", children: [_jsx("h2", { className: "text-sm uppercase tracking-wide text-fcr-ink font-bold mb-3", children: SECTION_TITLES[section] }), _jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3", children: [showPickers && accountContact && (_jsxs(_Fragment, { children: [_jsx(RecordPicker, { name: accountContact.accountColumn, label: accountContact.accountLabel ?? "Account", endpoint: accountContact.accountEndpoint, value: account, onChange: (h) => {
+                return (_jsxs("section", { className: "bg-white border border-fcr-line rounded-2xl p-4", children: [_jsx("h2", { className: "text-sm uppercase tracking-wide text-fcr-ink font-bold mb-3", children: SECTION_TITLES[section] }), _jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3", children: [showPickers && accountContact && useNewCustomer && (
+                                // New-customer-capable: the shared existing/new toggle + inline fields. Spans the whole
+                                // section row (it renders its own Customer/Contact cards). Submits the customer_mode/
+                                // new_customer_* contract the app action resolves via @fcr/core/intake.
+                                _jsx("div", { className: "sm:col-span-2 lg:col-span-3", children: _jsx(CustomerContactFields, { accountEndpoint: accountContact.accountEndpoint, contactEndpoint: accountContact.contactEndpoint, customer: customerSel, onCustomer: setCustomerSel, contact: contactSel, onContact: setContactSel, invalidFields: errorFields }) })), showPickers && accountContact && !useNewCustomer && (_jsxs(_Fragment, { children: [_jsx(RecordPicker, { name: accountContact.accountColumn, label: accountContact.accountLabel ?? "Account", endpoint: accountContact.accountEndpoint, value: account, onChange: (h) => {
                                                 setAccount(h);
                                                 setContactId(""); // a contact belongs to one account — reset on change
                                             }, invalid: errorFields.has(accountContact.accountColumn), placeholder: "Search accounts by name\u2026" }), _jsx(ContactSelect
