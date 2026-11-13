@@ -18,6 +18,11 @@ import {
   type DuplicateHit,
 } from "@fcr/core/intake";
 import { RecordPicker, ContactSelect, type PickerHit } from "./record-picker.js";
+import {
+  CustomerContactFields,
+  type CustomerSelection,
+  type ContactSelection,
+} from "./customer-select.js";
 
 /** Wiring for the coordinated account + contact typeahead pickers. When supplied, UnitForm renders
  *  these two columns as searchable RecordPickers instead of plain sf-id text inputs: the account
@@ -35,6 +40,16 @@ export interface AccountContactConfig {
   /** Edit-mode: preselected account/contact (resolved sf_id → hit by the caller). */
   initialAccount?: PickerHit | null;
   initialContact?: PickerHit | null;
+  /**
+   * Opt-in: also let the user CREATE a new customer/contact inline (not just pick an existing one).
+   * When true, UnitForm renders the shared CustomerContactFields (existing/new toggle) in place of the
+   * picker-only pair, submitting the customer_mode/new_customer_* contract instead of accountColumn/
+   * contactColumn — so the app's server action MUST resolve that contract (e.g. @fcr/core/intake's
+   * resolveCustomerRef/resolveContactRef) rather than reading a bare sf_id. Effective in CREATE mode only;
+   * edit mode keeps the pickers (you don't re-create a customer when editing a unit). Back-compat: absent/
+   * false keeps the picker-only behavior every existing consumer relies on.
+   */
+  allowNew?: boolean;
 }
 
 export interface FormState {
@@ -81,12 +96,10 @@ export default function UnitForm({
   const duplicates = state.duplicates ?? [];
   const errorFields = new Set(errors.map((e) => e.field).filter(Boolean) as string[]);
 
-  // Coordinated account/contact typeahead selection. Held in React state so it survives React 19's
-  // post-action form reset (same reason the fields below are controlled). Choosing an account resets
-  // the contact and scopes the contact endpoint to that account.
-  const [account, setAccount] = useState<PickerHit | null>(accountContact?.initialAccount ?? null);
-  // Contact is a LOADED picklist (ContactSelect) — its value is just the selected sf_id string.
-  const [contactId, setContactId] = useState<string>(accountContact?.initialContact?.sf_id ?? "");
+  // New-customer-capable path (opt-in, create mode only): the account/contact selection state lives in
+  // the chosen child (NewCustomerFields vs PickerFields), so exactly one state pair exists per mount —
+  // no dead state. useNewCustomer is a render-constant derived from props.
+  const useNewCustomer = Boolean(accountContact?.allowNew) && mode === "create";
   const acCols = new Set(accountContact ? [accountContact.accountColumn, accountContact.contactColumn] : []);
   const acSection = accountContact
     ? fields.find((f) => f.column === accountContact.accountColumn)?.section
@@ -143,41 +156,24 @@ export default function UnitForm({
         </div>
       )}
 
+      {/* New-customer-capable account/contact lives OUTSIDE the section cards — CustomerContactFields
+          renders its own Customer/Contact cards, so wrapping it in a section card would double-nest. It
+          owns its own existing/new selection state (so UnitForm carries none for this path). */}
+      {useNewCustomer && accountContact && (
+        <NewCustomerFields accountContact={accountContact} errorFields={errorFields} />
+      )}
+
       {SECTION_ORDER.map((section) => {
         const list = (bySection.get(section) ?? []).filter((f) => !acCols.has(f.column));
-        const showPickers = accountContact && section === acSection;
+        // Picker pair only renders in-card in picker mode; the new-customer block is rendered above.
+        const showPickers = Boolean(accountContact) && section === acSection && !useNewCustomer;
         if (list.length === 0 && !showPickers) return null;
         return (
           <section key={section} className="bg-white border border-fcr-line rounded-2xl p-4">
             <h2 className="text-sm uppercase tracking-wide text-fcr-ink font-bold mb-3">{SECTION_TITLES[section]}</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3">
               {showPickers && accountContact && (
-                <>
-                  <RecordPicker
-                    name={accountContact.accountColumn}
-                    label={accountContact.accountLabel ?? "Account"}
-                    endpoint={accountContact.accountEndpoint}
-                    value={account}
-                    onChange={(h) => {
-                      setAccount(h);
-                      setContactId(""); // a contact belongs to one account — reset on change
-                    }}
-                    invalid={errorFields.has(accountContact.accountColumn)}
-                    placeholder="Search accounts by name…"
-                  />
-                  <ContactSelect
-                    // Loaded picklist: on account select it fetches that account's contacts into a
-                    // dropdown (no typing). Remount on account change so options refetch cleanly.
-                    key={account?.sf_id ?? "no-account"}
-                    name={accountContact.contactColumn}
-                    label={accountContact.contactLabel ?? "Contact"}
-                    endpoint={accountContact.contactEndpoint}
-                    accountSfId={account?.sf_id ?? null}
-                    value={contactId}
-                    onChange={setContactId}
-                    invalid={errorFields.has(accountContact.contactColumn)}
-                  />
-                </>
+                <PickerFields accountContact={accountContact} errorFields={errorFields} />
               )}
               {list.map((f) => {
                 const value = values[f.column] ?? "";
@@ -227,6 +223,68 @@ export default function UnitForm({
         <a href={cancelHref} className="text-sm text-fcr-steel hover:text-fcr-ink">Cancel</a>
       </div>
     </form>
+  );
+}
+
+/** Existing-only account + contact typeahead pair (the default). Owns its own selection state; returns
+ *  two grid cells. Choosing an account resets + scopes the contact. */
+function PickerFields({ accountContact, errorFields }: { accountContact: AccountContactConfig; errorFields: Set<string> }) {
+  // Held in React state so it survives React 19's post-action form reset.
+  const [account, setAccount] = useState<PickerHit | null>(accountContact.initialAccount ?? null);
+  const [contactId, setContactId] = useState<string>(accountContact.initialContact?.sf_id ?? "");
+  return (
+    <>
+      <RecordPicker
+        name={accountContact.accountColumn}
+        label={accountContact.accountLabel ?? "Account"}
+        endpoint={accountContact.accountEndpoint}
+        value={account}
+        onChange={(h) => {
+          setAccount(h);
+          setContactId(""); // a contact belongs to one account — reset on change
+        }}
+        invalid={errorFields.has(accountContact.accountColumn)}
+        placeholder="Search accounts by name…"
+      />
+      <ContactSelect
+        // Loaded picklist: on account select it fetches that account's contacts into a dropdown (no
+        // typing). Remount on account change so options refetch cleanly.
+        key={account?.sf_id ?? "no-account"}
+        name={accountContact.contactColumn}
+        label={accountContact.contactLabel ?? "Contact"}
+        endpoint={accountContact.contactEndpoint}
+        accountSfId={account?.sf_id ?? null}
+        value={contactId}
+        onChange={setContactId}
+        invalid={errorFields.has(accountContact.contactColumn)}
+      />
+    </>
+  );
+}
+
+/** New-customer-capable account/contact (opt-in): the shared existing/new toggle + inline fields. Owns
+ *  its own selection state. Renders its own Customer/Contact cards, so it sits OUTSIDE the section card.
+ *  Submits the customer_mode / new_customer_* / contact_mode / new_contact_* contract the app's action
+ *  resolves via @fcr/core/intake's resolveCustomerRef/resolveContactRef. */
+function NewCustomerFields({ accountContact, errorFields }: { accountContact: AccountContactConfig; errorFields: Set<string> }) {
+  const [customerSel, setCustomerSel] = useState<CustomerSelection>({
+    mode: "existing",
+    account: accountContact.initialAccount ?? null,
+  });
+  const [contactSel, setContactSel] = useState<ContactSelection>({
+    mode: "existing",
+    ref: accountContact.initialContact?.sf_id ?? "",
+  });
+  return (
+    <CustomerContactFields
+      accountEndpoint={accountContact.accountEndpoint}
+      contactEndpoint={accountContact.contactEndpoint}
+      customer={customerSel}
+      onCustomer={setCustomerSel}
+      contact={contactSel}
+      onContact={setContactSel}
+      invalidFields={errorFields}
+    />
   );
 }
 

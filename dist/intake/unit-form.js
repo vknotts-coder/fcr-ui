@@ -11,17 +11,16 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 import { useActionState, useState } from "react";
 import { SECTION_ORDER, SECTION_TITLES, } from "@fcr/core/intake";
 import { RecordPicker, ContactSelect } from "./record-picker.js";
+import { CustomerContactFields, } from "./customer-select.js";
 export default function UnitForm({ action, fields, mode, cancelHref, initial = {}, fieldOptions, pickerColumns = [], renderPicker, accountContact, submitLabel, }) {
     const [state, formAction, pending] = useActionState(action, {});
     const errors = state.errors ?? [];
     const duplicates = state.duplicates ?? [];
     const errorFields = new Set(errors.map((e) => e.field).filter(Boolean));
-    // Coordinated account/contact typeahead selection. Held in React state so it survives React 19's
-    // post-action form reset (same reason the fields below are controlled). Choosing an account resets
-    // the contact and scopes the contact endpoint to that account.
-    const [account, setAccount] = useState(accountContact?.initialAccount ?? null);
-    // Contact is a LOADED picklist (ContactSelect) — its value is just the selected sf_id string.
-    const [contactId, setContactId] = useState(accountContact?.initialContact?.sf_id ?? "");
+    // New-customer-capable path (opt-in, create mode only): the account/contact selection state lives in
+    // the chosen child (NewCustomerFields vs PickerFields), so exactly one state pair exists per mount —
+    // no dead state. useNewCustomer is a render-constant derived from props.
+    const useNewCustomer = Boolean(accountContact?.allowNew) && mode === "create";
     const acCols = new Set(accountContact ? [accountContact.accountColumn, accountContact.contactColumn] : []);
     const acSection = accountContact
         ? fields.find((f) => f.column === accountContact.accountColumn)?.section
@@ -41,18 +40,13 @@ export default function UnitForm({ action, fields, mode, cancelHref, initial = {
         bySection.set(f.section, list);
     }
     const labels = submitLabel ?? { create: "Create", edit: "Save changes" };
-    return (_jsxs("form", { action: formAction, className: "space-y-5", children: [errors.length > 0 && (_jsxs("div", { className: "bg-fcr-red/10 border border-fcr-red/40 rounded-xl p-4", role: "alert", children: [_jsx("div", { className: "text-sm font-semibold text-fcr-red mb-1", children: "Please fix the following:" }), _jsx("ul", { className: "list-disc list-inside text-sm text-fcr-red space-y-0.5", children: errors.map((e, i) => (_jsx("li", { children: e.message }, i))) })] })), duplicates.length > 0 && (_jsxs("div", { className: "bg-fcr-amber/10 border border-fcr-amber/50 rounded-xl p-4", role: "alert", children: [_jsx("div", { className: "text-sm font-semibold text-fcr-ink mb-1", children: "Possible duplicate \u2014 is this already in the system?" }), _jsx("ul", { className: "text-sm text-fcr-ink space-y-1 mb-2", children: duplicates.map((d) => (_jsxs("li", { className: "flex items-center gap-2", children: [_jsx("span", { className: "uppercase text-[10px] tracking-wider text-fcr-steel", children: d.unitType }), _jsx("span", { className: "font-medium", children: d.sfName ?? "(no unit #)" }), _jsxs("span", { className: "text-fcr-steel", children: ["\u00B7 matched on ", d.matchedOn] }), _jsx("a", { href: `/records/${d.unitType}/${d.id}`, className: "text-fcr-red underline ml-1", children: "Open" })] }, `${d.unitType}:${d.id}`))) }), _jsx("p", { className: "text-xs text-fcr-steel", children: "Choosing \u201CCreate anyway\u201D will add a new record even though a match exists." })] })), SECTION_ORDER.map((section) => {
+    return (_jsxs("form", { action: formAction, className: "space-y-5", children: [errors.length > 0 && (_jsxs("div", { className: "bg-fcr-red/10 border border-fcr-red/40 rounded-xl p-4", role: "alert", children: [_jsx("div", { className: "text-sm font-semibold text-fcr-red mb-1", children: "Please fix the following:" }), _jsx("ul", { className: "list-disc list-inside text-sm text-fcr-red space-y-0.5", children: errors.map((e, i) => (_jsx("li", { children: e.message }, i))) })] })), duplicates.length > 0 && (_jsxs("div", { className: "bg-fcr-amber/10 border border-fcr-amber/50 rounded-xl p-4", role: "alert", children: [_jsx("div", { className: "text-sm font-semibold text-fcr-ink mb-1", children: "Possible duplicate \u2014 is this already in the system?" }), _jsx("ul", { className: "text-sm text-fcr-ink space-y-1 mb-2", children: duplicates.map((d) => (_jsxs("li", { className: "flex items-center gap-2", children: [_jsx("span", { className: "uppercase text-[10px] tracking-wider text-fcr-steel", children: d.unitType }), _jsx("span", { className: "font-medium", children: d.sfName ?? "(no unit #)" }), _jsxs("span", { className: "text-fcr-steel", children: ["\u00B7 matched on ", d.matchedOn] }), _jsx("a", { href: `/records/${d.unitType}/${d.id}`, className: "text-fcr-red underline ml-1", children: "Open" })] }, `${d.unitType}:${d.id}`))) }), _jsx("p", { className: "text-xs text-fcr-steel", children: "Choosing \u201CCreate anyway\u201D will add a new record even though a match exists." })] })), useNewCustomer && accountContact && (_jsx(NewCustomerFields, { accountContact: accountContact, errorFields: errorFields })), SECTION_ORDER.map((section) => {
                 const list = (bySection.get(section) ?? []).filter((f) => !acCols.has(f.column));
-                const showPickers = accountContact && section === acSection;
+                // Picker pair only renders in-card in picker mode; the new-customer block is rendered above.
+                const showPickers = Boolean(accountContact) && section === acSection && !useNewCustomer;
                 if (list.length === 0 && !showPickers)
                     return null;
-                return (_jsxs("section", { className: "bg-white border border-fcr-line rounded-2xl p-4", children: [_jsx("h2", { className: "text-sm uppercase tracking-wide text-fcr-ink font-bold mb-3", children: SECTION_TITLES[section] }), _jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3", children: [showPickers && accountContact && (_jsxs(_Fragment, { children: [_jsx(RecordPicker, { name: accountContact.accountColumn, label: accountContact.accountLabel ?? "Account", endpoint: accountContact.accountEndpoint, value: account, onChange: (h) => {
-                                                setAccount(h);
-                                                setContactId(""); // a contact belongs to one account — reset on change
-                                            }, invalid: errorFields.has(accountContact.accountColumn), placeholder: "Search accounts by name\u2026" }), _jsx(ContactSelect
-                                        // Loaded picklist: on account select it fetches that account's contacts into a
-                                        // dropdown (no typing). Remount on account change so options refetch cleanly.
-                                        , { name: accountContact.contactColumn, label: accountContact.contactLabel ?? "Contact", endpoint: accountContact.contactEndpoint, accountSfId: account?.sf_id ?? null, value: contactId, onChange: setContactId, invalid: errorFields.has(accountContact.contactColumn) }, account?.sf_id ?? "no-account")] })), list.map((f) => {
+                return (_jsxs("section", { className: "bg-white border border-fcr-line rounded-2xl p-4", children: [_jsx("h2", { className: "text-sm uppercase tracking-wide text-fcr-ink font-bold mb-3", children: SECTION_TITLES[section] }), _jsxs("div", { className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3", children: [showPickers && accountContact && (_jsx(PickerFields, { accountContact: accountContact, errorFields: errorFields })), list.map((f) => {
                                     const value = values[f.column] ?? "";
                                     const invalid = errorFields.has(f.column);
                                     if (pickerSet.has(f.column) && renderPicker) {
@@ -66,6 +60,35 @@ export default function UnitForm({ action, fields, mode, cancelHref, initial = {
                     // handler is NOT — React flushes the state update after the browser has already
                     // serialized the form, so the first click would submit blank and appear to do nothing.
                     _jsx("button", { type: "submit", name: "__confirm_duplicate", value: "1", disabled: pending, className: "border border-fcr-amber text-fcr-ink hover:bg-fcr-amber/20 disabled:opacity-60 transition-colors font-semibold rounded-md px-4 py-2.5 uppercase tracking-wider text-sm", children: "Create anyway" })), _jsx("a", { href: cancelHref, className: "text-sm text-fcr-steel hover:text-fcr-ink", children: "Cancel" })] })] }));
+}
+/** Existing-only account + contact typeahead pair (the default). Owns its own selection state; returns
+ *  two grid cells. Choosing an account resets + scopes the contact. */
+function PickerFields({ accountContact, errorFields }) {
+    // Held in React state so it survives React 19's post-action form reset.
+    const [account, setAccount] = useState(accountContact.initialAccount ?? null);
+    const [contactId, setContactId] = useState(accountContact.initialContact?.sf_id ?? "");
+    return (_jsxs(_Fragment, { children: [_jsx(RecordPicker, { name: accountContact.accountColumn, label: accountContact.accountLabel ?? "Account", endpoint: accountContact.accountEndpoint, value: account, onChange: (h) => {
+                    setAccount(h);
+                    setContactId(""); // a contact belongs to one account — reset on change
+                }, invalid: errorFields.has(accountContact.accountColumn), placeholder: "Search accounts by name\u2026" }), _jsx(ContactSelect
+            // Loaded picklist: on account select it fetches that account's contacts into a dropdown (no
+            // typing). Remount on account change so options refetch cleanly.
+            , { name: accountContact.contactColumn, label: accountContact.contactLabel ?? "Contact", endpoint: accountContact.contactEndpoint, accountSfId: account?.sf_id ?? null, value: contactId, onChange: setContactId, invalid: errorFields.has(accountContact.contactColumn) }, account?.sf_id ?? "no-account")] }));
+}
+/** New-customer-capable account/contact (opt-in): the shared existing/new toggle + inline fields. Owns
+ *  its own selection state. Renders its own Customer/Contact cards, so it sits OUTSIDE the section card.
+ *  Submits the customer_mode / new_customer_* / contact_mode / new_contact_* contract the app's action
+ *  resolves via @fcr/core/intake's resolveCustomerRef/resolveContactRef. */
+function NewCustomerFields({ accountContact, errorFields }) {
+    const [customerSel, setCustomerSel] = useState({
+        mode: "existing",
+        account: accountContact.initialAccount ?? null,
+    });
+    const [contactSel, setContactSel] = useState({
+        mode: "existing",
+        ref: accountContact.initialContact?.sf_id ?? "",
+    });
+    return (_jsx(CustomerContactFields, { accountEndpoint: accountContact.accountEndpoint, contactEndpoint: accountContact.contactEndpoint, customer: customerSel, onCustomer: setCustomerSel, contact: contactSel, onContact: setContactSel, invalidFields: errorFields }));
 }
 function FieldInput({ field, value, onChange, invalid, options, }) {
     const selectOptions = options ?? field.options ?? [];
