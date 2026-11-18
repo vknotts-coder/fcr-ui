@@ -19,9 +19,21 @@ import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-run
 import { useActionState, useEffect, useRef, useState } from "react";
 import { SECTION_ORDER, SECTION_TITLES } from "@fcr/core/intake";
 import { CustomerContactFields, inputBase, } from "./customer-select.js";
+/**
+ * Values a newly-added unit inherits from the previous one: everything the prior unit had EXCEPT the
+ * per-unit identity columns (Unit #, VIN), which a new unit must set itself (Van 2026-11-18). Pure so
+ * the carry-over contract is unit-testable without a DOM. Excluded columns are dropped (absent), not
+ * blanked, so their inputs render empty.
+ */
+export function carryOverValues(lastValues, excludeColumns) {
+    if (!lastValues)
+        return {};
+    const exclude = new Set(excludeColumns);
+    return Object.fromEntries(Object.entries(lastValues).filter(([col]) => !exclude.has(col)));
+}
 const btnPrimary = "bg-fcr-red hover:bg-fcr-red-dark disabled:opacity-60 transition-colors text-white font-semibold rounded-md px-6 py-2.5 uppercase tracking-wider text-sm";
 const btnGhost = "border border-fcr-line text-fcr-ink hover:bg-fcr-paper transition-colors font-semibold rounded-md px-4 py-2.5 uppercase tracking-wider text-sm";
-export default function MultiIntakeForm({ action, fields, customerRefColumn, contactRefColumn, accountEndpoint, contactEndpoint, cancelHref, unitLabel, submitLabel, }) {
+export default function MultiIntakeForm({ action, fields, customerRefColumn, contactRefColumn, accountEndpoint, contactEndpoint, cancelHref, unitLabel, submitLabel, carryOverExcludeColumns = ["sf_name", "vin", "full_vin"], }) {
     const [state, formAction, pending] = useActionState(action, {});
     const errors = state.errors ?? [];
     const duplicates = state.duplicates ?? [];
@@ -47,8 +59,14 @@ export default function MultiIntakeForm({ action, fields, customerRefColumn, con
         ? new Set()
         : new Set(errors.filter((e) => e.index === index).map((e) => e.field).filter(Boolean));
     const setUnit = (i, col, v) => setUnits((prev) => prev.map((u, j) => (j === i ? { ...u, values: { ...u.values, [col]: v } } : u)));
+    // "+ Add {unit}" clones the previous unit's values minus the identity columns (Unit #, VIN), so a
+    // batch of similar pickups doesn't re-type the shared fields (Van 2026-11-18). The excluded columns
+    // are dropped, not blanked, so a carried unit with no value for them renders an empty input.
     const addUnit = () => {
-        setUnits((prev) => [...prev, { id: nextId.current++, values: {} }]);
+        setUnits((prev) => [
+            ...prev,
+            { id: nextId.current++, values: carryOverValues(prev[prev.length - 1]?.values, carryOverExcludeColumns) },
+        ]);
         setRestructured(true);
     };
     const removeUnit = (i) => {
