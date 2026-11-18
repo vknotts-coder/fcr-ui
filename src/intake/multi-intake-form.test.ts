@@ -2,9 +2,11 @@
 // previous unit's field values EXCEPT the identity columns (Unit #, VIN). Pure helper, no DOM.
 
 import { describe, it, expect } from "vitest";
-import { carryOverValues } from "./multi-intake-form.js";
+import { carryOverValues, DEFAULT_CARRY_OVER_EXCLUDE_COLUMNS } from "./multi-intake-form.js";
 
-const DEFAULT_EXCLUDE = ["sf_name", "vin", "full_vin"];
+// Reference the component's REAL default, never a re-typed copy — otherwise the test validates its
+// own literals and can never catch the default drifting from the specs' identity columns.
+const DEFAULT_EXCLUDE = DEFAULT_CARRY_OVER_EXCLUDE_COLUMNS;
 
 describe("carryOverValues", () => {
   it("carries every prior field except the identity columns", () => {

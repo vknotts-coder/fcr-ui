@@ -14,6 +14,15 @@ export interface MultiFormState {
 type Action = (prev: MultiFormState, formData: FormData) => Promise<MultiFormState>;
 type UnitValues = Record<string, string>;
 /**
+ * Default per-unit identity columns NOT carried over by "+ Add {unit}" — the unit-number and VIN
+ * columns across both the truck (`sf_name`, `vin`) and trailer (`sf_name`, `full_vin`) specs in
+ * @fcr/core/intake. Exported as the single source of truth so a consumer and its tests reference
+ * THIS value rather than re-typing the literals (which would drift silently). A consumer that knows
+ * its own spec can pass a precise `carryOverExcludeColumns` (e.g. derived from the spec's declared
+ * identity columns) to override it.
+ */
+export declare const DEFAULT_CARRY_OVER_EXCLUDE_COLUMNS: readonly ["sf_name", "vin", "full_vin"];
+/**
  * Values a newly-added unit inherits from the previous one: everything the prior unit had EXCEPT the
  * per-unit identity columns (Unit #, VIN), which a new unit must set itself (Van 2026-11-18). Pure so
  * the carry-over contract is unit-testable without a DOM. Excluded columns are dropped (absent), not
@@ -39,7 +48,7 @@ export interface MultiIntakeFormProps {
      * (Van 2026-11-18). Defaults to the unit-number + VIN columns across both the truck and trailer
      * specs (`sf_name`, `vin`, `full_vin`).
      */
-    carryOverExcludeColumns?: string[];
+    carryOverExcludeColumns?: readonly string[];
 }
 export default function MultiIntakeForm({ action, fields, customerRefColumn, contactRefColumn, accountEndpoint, contactEndpoint, cancelHref, unitLabel, submitLabel, carryOverExcludeColumns, }: MultiIntakeFormProps): import("react").JSX.Element;
 export {};

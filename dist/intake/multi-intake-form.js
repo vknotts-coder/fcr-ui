@@ -20,6 +20,15 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { SECTION_ORDER, SECTION_TITLES } from "@fcr/core/intake";
 import { CustomerContactFields, inputBase, } from "./customer-select.js";
 /**
+ * Default per-unit identity columns NOT carried over by "+ Add {unit}" — the unit-number and VIN
+ * columns across both the truck (`sf_name`, `vin`) and trailer (`sf_name`, `full_vin`) specs in
+ * @fcr/core/intake. Exported as the single source of truth so a consumer and its tests reference
+ * THIS value rather than re-typing the literals (which would drift silently). A consumer that knows
+ * its own spec can pass a precise `carryOverExcludeColumns` (e.g. derived from the spec's declared
+ * identity columns) to override it.
+ */
+export const DEFAULT_CARRY_OVER_EXCLUDE_COLUMNS = ["sf_name", "vin", "full_vin"];
+/**
  * Values a newly-added unit inherits from the previous one: everything the prior unit had EXCEPT the
  * per-unit identity columns (Unit #, VIN), which a new unit must set itself (Van 2026-11-18). Pure so
  * the carry-over contract is unit-testable without a DOM. Excluded columns are dropped (absent), not
@@ -33,7 +42,7 @@ export function carryOverValues(lastValues, excludeColumns) {
 }
 const btnPrimary = "bg-fcr-red hover:bg-fcr-red-dark disabled:opacity-60 transition-colors text-white font-semibold rounded-md px-6 py-2.5 uppercase tracking-wider text-sm";
 const btnGhost = "border border-fcr-line text-fcr-ink hover:bg-fcr-paper transition-colors font-semibold rounded-md px-4 py-2.5 uppercase tracking-wider text-sm";
-export default function MultiIntakeForm({ action, fields, customerRefColumn, contactRefColumn, accountEndpoint, contactEndpoint, cancelHref, unitLabel, submitLabel, carryOverExcludeColumns = ["sf_name", "vin", "full_vin"], }) {
+export default function MultiIntakeForm({ action, fields, customerRefColumn, contactRefColumn, accountEndpoint, contactEndpoint, cancelHref, unitLabel, submitLabel, carryOverExcludeColumns = DEFAULT_CARRY_OVER_EXCLUDE_COLUMNS, }) {
     const [state, formAction, pending] = useActionState(action, {});
     const errors = state.errors ?? [];
     const duplicates = state.duplicates ?? [];
