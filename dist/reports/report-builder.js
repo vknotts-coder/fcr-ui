@@ -109,6 +109,11 @@ export default function ReportBuilder({ objects, initial, savedReportId, actions
         setOutcome(null);
         setRanDefinition(null);
         setSaveMsg(null);
+        // Switching the reported object starts a fresh report — drop the edited report's identity + name so the
+        // next Save inserts a new row instead of overwriting the one that was open (#66 review). No-op for the
+        // single-object apps (the picker has nothing to switch to), correct for a future multi-object builder.
+        setCurrentId(null);
+        setName("");
     }
     function toggleColumn(key) {
         setColumns((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
