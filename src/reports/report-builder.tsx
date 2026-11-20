@@ -36,7 +36,9 @@ export type SaveResult = { ok: true; id: string } | { ok: false; errors: string[
  *  src/app/reports/builder/actions.ts, etc.), never imported here. */
 export type ReportBuilderActions = {
   runReport: (definition: unknown) => Promise<RunOutcome>;
-  saveReport: (name: string, definition: unknown) => Promise<SaveResult>;
+  /** `id` is the saved report's id when editing an existing one (update in place), or null for a new report
+   *  (#66). The app action forwards it to @fcr/core saveReport, which updates-by-id or inserts a new row. */
+  saveReport: (id: string | null, name: string, definition: unknown) => Promise<SaveResult>;
   deleteReport: (id: string) => Promise<void>;
 };
 
@@ -197,6 +199,10 @@ export default function ReportBuilder({
   const [groupBy, setGroupBy] = useState<ReportGroupBy | null>(initial?.definition.groupBy ?? null);
   const [summaries, setSummaries] = useState<ReportSummary[]>(initial?.definition.summaries ?? []);
   const [name, setName] = useState(initial?.name ?? "");
+  // The id of the report currently being edited — the prop seeds it (opened from /reports/[id]), and a
+  // successful save of a NEW report adopts the returned id (#66) so the NEXT Save updates that row in place
+  // instead of inserting another duplicate.
+  const [currentId, setCurrentId] = useState<string | null>(savedReportId ?? null);
 
   const [outcome, setOutcome] = useState<RunOutcome | null>(null);
   // Snapshot of the definition that produced `outcome` (set only on a successful run). The CSV Export button
@@ -243,6 +249,11 @@ export default function ReportBuilder({
     setOutcome(null);
     setRanDefinition(null);
     setSaveMsg(null);
+    // Switching the reported object starts a fresh report — drop the edited report's identity + name so the
+    // next Save inserts a new row instead of overwriting the one that was open (#66 review). No-op for the
+    // single-object apps (the picker has nothing to switch to), correct for a future multi-object builder.
+    setCurrentId(null);
+    setName("");
   }
 
   function toggleColumn(key: string) {
@@ -321,14 +332,15 @@ export default function ReportBuilder({
   }
   function save() {
     startSave(async () => {
-      const r = await actions.saveReport(name, definition);
+      const r = await actions.saveReport(currentId, name, definition);
+      if (r.ok) setCurrentId(r.id); // adopt the id so a re-save updates this row, not a new duplicate
       setSaveMsg(r.ok ? "Saved." : r.errors.join("; "));
     });
   }
   function remove() {
-    if (!savedReportId) return;
+    if (!currentId) return;
     startDelete(async () => {
-      await actions.deleteReport(savedReportId);
+      await actions.deleteReport(currentId);
     });
   }
 
@@ -526,7 +538,7 @@ export default function ReportBuilder({
             {saveMsg && <p className="mt-1 text-sm text-fcr-steel">{saveMsg}</p>}
           </div>
 
-          {savedReportId && (
+          {currentId && (
             <div className="border-t border-fcr-line pt-3">
               <button type="button" onClick={remove} disabled={deleting} className={btnSecondary}>
                 {deleting ? "Deleting…" : "Delete report"}
