@@ -4,6 +4,5 @@
 export { default as ListGrid, SortableHeader } from "./list-grid.js";
 export { EditableCell } from "./editable-cell.js";
 export { default as StatusSelect } from "./status-select.js";
-export { ColumnOrderControl } from "./column-order-control.js";
 export { ColumnControl } from "./column-control.js";
 export { moveColumn, moveItem, sameKeyOrder, reconcileColumns, toggleHidden, reconcileArrangement, serializeArrangement, sameArrangement, } from "./column-order.js";
