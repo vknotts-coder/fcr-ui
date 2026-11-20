@@ -1,8 +1,8 @@
 "use client";
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 // Per-user column SHOW/HIDE + REORDER control for the list-view surface (Track C, epic fcr-dispatch#402).
-// The superset of ColumnOrderControl (#88 Track B, which is reorder-only and kept for back-compat): this
-// one also lets a user turn columns off and back on. App-agnostic — @fcr/ui owns no persistence; the
+// Superseded the earlier reorder-only control (#88 Track B): in addition to reordering, this one lets a
+// user turn columns off and back on. App-agnostic — @fcr/ui owns no persistence; the
 // consumer injects `onSave` (its gated server action → @fcr/core saveListViewPref with the { order, hidden }
 // arrangement) and `onReset` (→ deleteListViewPref), both of which revalidate so the grid re-renders.
 //
