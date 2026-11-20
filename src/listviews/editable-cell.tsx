@@ -135,6 +135,15 @@ export function EditableCell({
     }
   };
 
+  // Keep the row's CURRENT value selectable even when it isn't among the offered options — e.g. a team retired
+  // from the roster, or any legacy/off-list value. A controlled <select value=…> with no matching <option>
+  // renders BLANK, which looks like the cell was cleared; appending the current value makes it display (and a
+  // blur with no change still no-ops in commit(), so nothing is written). Blank "" is already the "—" option.
+  const selectOptions =
+    spec.input === "select" && raw !== "" && !(spec.options ?? []).includes(raw)
+      ? [...(spec.options ?? []), raw]
+      : spec.options ?? [];
+
   return (
     <td className={tdCls}>
       {spec.input === "select" ? (
@@ -146,7 +155,7 @@ export function EditableCell({
           onKeyDown={onKeyDown}
           className={inputCls}
         >
-          {(spec.options ?? []).map((o) => (
+          {selectOptions.map((o) => (
             <option key={o} value={o}>
               {o === "" ? "—" : o}
             </option>

@@ -80,5 +80,12 @@ export function EditableCell({ rowId, col, spec, initialRaw, onCommit, dateForma
             setDraft(raw);
         }
     };
-    return (_jsx("td", { className: tdCls, children: spec.input === "select" ? (_jsx("select", { autoFocus: true, value: draft, onChange: (e) => setDraft(e.target.value), onBlur: commit, onKeyDown: onKeyDown, className: inputCls, children: (spec.options ?? []).map((o) => (_jsx("option", { value: o, children: o === "" ? "—" : o }, o))) })) : spec.input === "textarea" ? (_jsx("textarea", { autoFocus: true, rows: 2, value: draft, onChange: (e) => setDraft(e.target.value), onBlur: commit, onKeyDown: onKeyDown, className: inputCls })) : (_jsx("input", { autoFocus: true, type: spec.input === "number" ? "number" : spec.input === "date" ? "date" : "text", value: draft, onChange: (e) => setDraft(e.target.value), onBlur: commit, onKeyDown: onKeyDown, className: inputCls })) }));
+    // Keep the row's CURRENT value selectable even when it isn't among the offered options — e.g. a team retired
+    // from the roster, or any legacy/off-list value. A controlled <select value=…> with no matching <option>
+    // renders BLANK, which looks like the cell was cleared; appending the current value makes it display (and a
+    // blur with no change still no-ops in commit(), so nothing is written). Blank "" is already the "—" option.
+    const selectOptions = spec.input === "select" && raw !== "" && !(spec.options ?? []).includes(raw)
+        ? [...(spec.options ?? []), raw]
+        : spec.options ?? [];
+    return (_jsx("td", { className: tdCls, children: spec.input === "select" ? (_jsx("select", { autoFocus: true, value: draft, onChange: (e) => setDraft(e.target.value), onBlur: commit, onKeyDown: onKeyDown, className: inputCls, children: selectOptions.map((o) => (_jsx("option", { value: o, children: o === "" ? "—" : o }, o))) })) : spec.input === "textarea" ? (_jsx("textarea", { autoFocus: true, rows: 2, value: draft, onChange: (e) => setDraft(e.target.value), onBlur: commit, onKeyDown: onKeyDown, className: inputCls })) : (_jsx("input", { autoFocus: true, type: spec.input === "number" ? "number" : spec.input === "date" ? "date" : "text", value: draft, onChange: (e) => setDraft(e.target.value), onBlur: commit, onKeyDown: onKeyDown, className: inputCls })) }));
 }
