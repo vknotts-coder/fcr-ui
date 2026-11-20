@@ -13,7 +13,9 @@ export type SaveResult = {
  *  src/app/reports/builder/actions.ts, etc.), never imported here. */
 export type ReportBuilderActions = {
     runReport: (definition: unknown) => Promise<RunOutcome>;
-    saveReport: (name: string, definition: unknown) => Promise<SaveResult>;
+    /** `id` is the saved report's id when editing an existing one (update in place), or null for a new report
+     *  (#66). The app action forwards it to @fcr/core saveReport, which updates-by-id or inserts a new row. */
+    saveReport: (id: string | null, name: string, definition: unknown) => Promise<SaveResult>;
     deleteReport: (id: string) => Promise<void>;
 };
 export type ReportBuilderInitial = {
